@@ -53,12 +53,20 @@ To bypass this and trigger dictation while your cursor is captured inside a VM, 
 2. **Find your Key Codes**:
    Run `sudo thd --dump /dev/input/event*` and press your desired hotkey to discover its exact kernel name (e.g., `KEY_SPACE`).
 3. **Create a Trigger**:
-   Create a configuration file (e.g., `/etc/triggerhappy/triggers.d/dictate.conf`):
+   Create a configuration file in your home directory (e.g., `~/.config/triggerhappy.conf`):
    ```text
    # Example: Trigger on Left Ctrl + Space
    KEY_SPACE+KEY_LEFTCTRL    1    /home/elias/dictate.sh
    ```
-4. **Start the Daemon**:
-   Start the `triggerhappy` service. It will now intercept the key before the VM grabs it!
+4. **Run in User-Mode**:
+   To ensure the script can still access your Wayland clipboard and notifications, run `triggerhappy` in user-mode rather than as a root system service. 
+   First, add your user to the input group and log out/log back in:
+   ```bash
+   sudo usermod -aG input $USER
+   ```
+   Then, start it in the background from your terminal (or add it to your autostart scripts):
+   ```bash
+   thd --triggers ~/.config/triggerhappy.conf /dev/input/event* &
+   ```
 
 **The Auto-Typing Bonus**: Because `ydotool` (Phase 4) also operates at the kernel level, it will successfully simulate keystrokes *across the VM boundary*, typing your transcribed text directly into your guest OS as if you typed it on your physical keyboard!
