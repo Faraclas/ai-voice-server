@@ -43,7 +43,8 @@ else
     # paplay /usr/share/sounds/freedesktop/stereo/bell.oga &
     
     # Record audio in the background (16kHz, mono, 16-bit is perfect for Whisper)
-    arecord -f S16_LE -c1 -r 16000 -q $AUDIO_FILE &
+    # 2>/dev/null hides the harmless 'Interrupted system call' error when we kill it
+    arecord -f S16_LE -c1 -r 16000 -q $AUDIO_FILE 2>/dev/null &
     
     # Save the Process ID so we can kill it on the next press
     echo $! > "$PID_FILE"
