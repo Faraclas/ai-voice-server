@@ -3,6 +3,14 @@
 A completely self-hosted, highly accurate, and GPU-accelerated voice dictation pipeline. 
 This project allows a user to dictate on a client machine and have the audio processed by a dedicated AI server (Gentoo Linux with an NVIDIA GPU), returning the text directly to the client's clipboard or auto-typing it into the currently focused window.
 
+## Quick Start (Running the Server)
+To start the AI transcription server on the Gentoo machine, simply navigate to this directory and run the start script:
+```bash
+cd ~/code/ai-voice-server
+./server/start.sh
+```
+*(By default, this will automatically load the `small.en` Whisper model into your GPU VRAM and start listening on port `8000` across your local network).*
+
 ## Architecture
 - **Server:** A FastAPI application (`server/server.py`) running `faster-whisper`. It keeps the AI model loaded in VRAM for instant, sub-second transcription.
 - **Client:** A push-to-talk bash script (`client/dictate.sh`) designed to be bound to a global system hotkey on a Wayland desktop. It records audio, handles the API request, and auto-pastes the result.
