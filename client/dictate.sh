@@ -22,7 +22,28 @@ SERVER_URL="http://${SERVER_HOST}:${SERVER_PORT}"
 AUDIO_FILE="/tmp/dictation.wav"
 PID_FILE="/tmp/dictation.pid"
 
-# --- DIAGNOSTICS: Handle --test flag ---
+# --- DIAGNOSTICS & HELP ---
+if [ "$1" == "--help" ] || [ "$1" == "-h" ]; then
+    echo "Voice-to-Text Dictation Client"
+    echo "=============================="
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "Description:"
+    echo "  A push-to-talk dictation client designed to be bound to a system hotkey."
+    echo "  Run once to start recording. Run again to stop, transcribe, and copy."
+    echo ""
+    echo "Options:"
+    echo "  -h, --help    Show this help message and exit"
+    echo "  --test        Ping the AI server to check if it's online and display the loaded model"
+    echo ""
+    echo "Configuration:"
+    echo "  Settings are loaded from: $CONFIG_FILE"
+    echo "  (You can edit this file to change the Server IP and Port)."
+    echo ""
+    exit 0
+fi
+
+# Handle --test flag
 if [ "$1" == "--test" ]; then
     echo "Testing connection to server at $SERVER_URL..."
     # Ping the /status endpoint with a strict 2-second timeout
