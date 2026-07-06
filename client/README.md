@@ -37,3 +37,28 @@ To have the script automatically type the text for you (simulating keystrokes), 
    *(Note: This sends hardware scan-codes simulating pressing and releasing `Left Ctrl` (29) and `v` (47)).*
 
 Once completed, pressing your hotkey a second time to stop recording will instantly paste the transcribed text directly into whatever window your cursor is currently focused on!
+
+---
+
+## Advanced: Using with Virtual Machines (KVM)
+If you frequently use Virtual Machines (via QEMU/KVM or Virt-Manager), you will notice that the VM "grabs" your keyboard, preventing GNOME from receiving your shortcut key (e.g., `Ctrl+Space`). 
+
+To bypass this and trigger dictation while your cursor is captured inside a VM, you must listen for the hotkey at the raw hardware level using **`triggerhappy`**.
+
+### Triggerhappy Setup
+1. **Install Triggerhappy**:
+   ```bash
+   sudo emerge -av triggerhappy
+   ```
+2. **Find your Key Codes**:
+   Run `sudo thd --dump /dev/input/event*` and press your desired hotkey to discover its exact kernel name (e.g., `KEY_SPACE`).
+3. **Create a Trigger**:
+   Create a configuration file (e.g., `/etc/triggerhappy/triggers.d/dictate.conf`):
+   ```text
+   # Example: Trigger on Left Ctrl + Space
+   KEY_SPACE+KEY_LEFTCTRL    1    /home/elias/dictate.sh
+   ```
+4. **Start the Daemon**:
+   Start the `triggerhappy` service. It will now intercept the key before the VM grabs it!
+
+**The Auto-Typing Bonus**: Because `ydotool` (Phase 4) also operates at the kernel level, it will successfully simulate keystrokes *across the VM boundary*, typing your transcribed text directly into your guest OS as if you typed it on your physical keyboard!
