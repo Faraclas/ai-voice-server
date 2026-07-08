@@ -9,13 +9,20 @@ from faster_whisper import WhisperModel
 model = None
 current_model_size = None
 
+def get_whisper_model(model_size: str):
+    try:
+        return WhisperModel(model_size, device="cuda", compute_type="float16")
+    except Exception as e:
+        print(f"Warning: Failed to load on CUDA ({e}). Falling back to CPU...")
+        return WhisperModel(model_size, device="cpu", compute_type="int8")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global model, current_model_size
     current_model_size = os.environ.get("WHISPER_MODEL", "small.en")
     
     print(f"Loading default model '{current_model_size}' on startup...")
-    model = WhisperModel(current_model_size, device="cuda", compute_type="float16")
+    model = get_whisper_model(current_model_size)
     print("Ready for requests!")
     yield
     print("Shutting down...")
@@ -33,8 +40,8 @@ async def set_model(request: ModelRequest):
         print(f"API Request received: Switching model to '{request.model_size}'...")
         start_time = time.time()
         
-        # Load the new model into VRAM (this overwrites the old one, freeing its memory)
-        model = WhisperModel(request.model_size, device="cuda", compute_type="float16")
+        # Load the new model into VRAM/RAM (this overwrites the old one, freeing its memory)
+        model = get_whisper_model(request.model_size)
         current_model_size = request.model_size
         
         return {
