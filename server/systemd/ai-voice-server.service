@@ -1,0 +1,26 @@
+[Unit]
+Description=AI Voice Transcription Server
+After=network.target
+Documentation=https://github.com/your-username/ai-voice-server
+
+[Service]
+Type=simple
+User=elias
+Group=elias
+WorkingDirectory=/home/elias/code/ai-voice-server
+# Read configuration from Gentoo's standard conf.d directory
+EnvironmentFile=-/etc/conf.d/ai-voice-server
+
+# Check for NVIDIA GPU. 
+# ExecCondition will gracefully skip starting the service (exit status 1-254) 
+# instead of marking it as failed if the GPU is missing/unplugged.
+ExecCondition=/usr/bin/nvidia-smi
+
+# The start script accepts the model size as the first argument
+ExecStart=/home/elias/code/ai-voice-server/server/start.sh ${WHISPER_MODEL}
+
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
