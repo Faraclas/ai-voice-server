@@ -1,22 +1,333 @@
-# Server Implementation Plan
+# Server Implementation Plan (v2)
 
-*(To be filled out by the Server Agent)*
+Status: **Planning.** This document plans the production **v2** server, a native Rust
+rewrite of the Python PoC in `python-prototype/server/`. Per `ROADMAP.md`, the PoC
+stays untouched as a working baseline; v2 is built alongside it in `src/server/`.
 
-## 1. Core Requirements
-- Must run as a persistent background daemon (systemd).
-- Must expose a WebSocket API (`/stream`) for real-time audio streaming and transcription.
-- Must implement a concurrency Job Queue to prevent GPU VRAM exhaustion from multiple simultaneous clients.
-- Must execute AI transcription natively using the NVIDIA GPU.
+## 1. Scope & Goals
+- Replace the Python/`faster-whisper` runtime with a compiled Rust binary for lower
+  latency, lower memory overhead, and single-binary deployment.
+- Keep the AI model resident in GPU VRAM for sub-second, warm-path transcription.
+- Serve multiple clients safely without exhausting VRAM (concurrency job queue).
+- Run headlessly as a resilient `systemd` service with GPU hardware detection.
+- Match the wire protocol defined in `docs/api-contract.md` so client work can proceed
+  independently.
 
-## 2. Technical Stack
-- **Language:** Rust
-- **Web Framework:** Axum (fast, ergonomic, built on Tokio)
-- **AI Inference:** `whisper.cpp` (via `whisper-rs` bindings)
+**Distribution-agnostic boundary (important):** this repository is portable, upstream
+source code that must not embed distro-specific assumptions. It exposes *mechanisms* only
+— Cargo feature flags for backends, runtime configuration via environment/config file,
+and no hardcoded distro paths. All Gentoo-specific *packaging* (the ebuild, USE flags,
+`REQUIRED_USE`, `RDEPEND`, conf.d/systemd install paths) lives **downstream** in the
+`adaptive-overlay` repo, not here. Wherever this plan mentions USE flags, it is naming
+the overlay-side policy that maps onto the upstream Cargo features documented below. See
+§9 for the exact split of responsibilities.
 
-## 3. Implementation Steps
-1. Setup project structure and dependencies.
-2. Implement HTTP server and routing.
-3. Integrate Whisper C++ bindings and ensure GPU execution.
-4. Implement model loading and caching logic.
-5. Write systemd service files and configuration.
-6. Create Gentoo ebuild.
+Non-goals for v2.0 (explicitly deferred):
+- The LLM formatting engine (README "Future Work"). Leave a clean seam for it.
+- Word-by-word partial/interim transcripts (`is_final: false`). Reserve the field now,
+  implement later.
+- Any Gentoo/ebuild artifacts in this repo (they belong in `adaptive-overlay`).
+
+## 2. Lessons Carried Over From the PoC
+The PoC (`server.py`) is the reference for behavior we want to preserve:
+- **Warm model in VRAM** via app lifespan; load once at startup, reuse per request.
+- **CUDA-first with CPU fallback** (`get_whisper_model`): try GPU, degrade gracefully.
+- **Dynamic model switching at runtime** (`/set_model`) without a restart — loading a
+  new model replaces the old one and frees its VRAM.
+- **Model selected via env var** (`WHISPER_MODEL`, default `small.en`).
+- **CUDA math libs on the library path** (see `start.sh` `LD_LIBRARY_PATH`). The Rust
+  build linking `whisper.cpp` with CUDA will have an analogous runtime linkage concern.
+- Return **timing metadata** with each transcription (the PoC returns
+  `processing_time_seconds`; the contract uses `processing_time_ms`).
+
+## 3. Technical Stack
+- **Language:** Rust (stable).
+- **Web framework:** Axum (Tokio-based) — WebSocket + HTTP in one server.
+- **Async runtime:** Tokio (multi-threaded).
+- **Inference:** `whisper.cpp` via the `whisper-rs` bindings (pin ~`0.14.x`).
+  Stack, bottom-up:
+  - **`ggml`** — low-level C tensor/math library that owns the compute *backends*
+    (CPU, CUDA, HIP/ROCm, Vulkan, SYCL, …).
+  - **`whisper.cpp`** — C/C++ implementation of the Whisper model built on `ggml`.
+  - **`whisper-rs`** — Rust FFI bindings that *vendor* current `whisper.cpp` (hence
+    current `ggml`) and build it via CMake. Each backend is a Cargo feature that flips a
+    `GGML_*` CMake define, which is what lets us drive backend selection from Gentoo USE
+    flags. GPU controls (`use_gpu`, `gpu_device`) are exposed for runtime device choice.
+  The GPU backend(s) are a **compile-time** choice (see §6.6 and the ebuild in §9); the
+  CPU backend is always compiled in.
+- **Audio decode/resample:** candidate crates `symphonia` (decode) + `rubato`
+  (resample) to normalize client audio to whisper's required 16 kHz mono `f32` PCM.
+  See Open Question O3.
+- **Serialization:** `serde` / `serde_json` for the JSON control + result messages.
+
+## 4. Proposed Project Structure
+```
+src/server/
+├── Cargo.toml
+├── build.rs                 # if needed for whisper.cpp/CUDA build flags
+└── src/
+    ├── main.rs              # startup, config load, GPU check, bind, run
+    ├── config.rs            # env/conf.d parsing (port, model, queue depth…)
+    ├── routes/
+    │   ├── mod.rs
+    │   ├── health.rs        # GET /health
+    │   └── stream.rs        # WebSocket /stream handler
+    ├── transcribe/
+    │   ├── mod.rs
+    │   ├── engine.rs        # whisper-rs wrapper, model load/switch, GPU/CPU
+    │   └── queue.rs         # single-worker GPU job queue
+    └── audio.rs             # decode + resample to 16kHz mono f32
+```
+
+## 5. API Surface (aligned to `docs/api-contract.md`)
+### 5.1 `GET /health`
+Returns readiness + GPU/model state. Response shape per contract:
+```json
+{ "status": "ready", "gpu_active": true, "loaded_model": "medium.en" }
+```
+
+### 5.2 `WebSocket /stream`
+- **Client → Server:** binary frames of audio chunks; optional JSON control messages
+  (`{"action":"set_model","model":"medium.en"}`, `{"action":"end_stream"}`).
+- **Server → Client:** JSON result:
+```json
+{ "text": "…", "is_final": true, "processing_time_ms": 150 }
+```
+
+**v2.0 processing model (decision):** accumulate the binary chunks per connection into a
+buffer; on `end_stream`, decode/resample the full buffer, enqueue one transcription job,
+and return a single `is_final: true` result. This delivers the contract's semantics
+without the complexity of streaming partial decodes. Interim results are a later
+enhancement (Open Question O2).
+
+## 6. Internal Design
+
+### 6.1 Connection lifecycle (`/stream`)
+1. Accept upgrade; create a per-connection buffer and (optional) model override.
+2. On binary frame → append to buffer.
+3. On JSON `set_model` → validate + request a model switch (see 6.3).
+4. On JSON `end_stream` (or socket close after data) → finalize: decode → resample →
+   enqueue job → await result → send JSON result frame.
+5. Handle client disconnect mid-stream by dropping the buffer (no job enqueued).
+6. **Keepalive:** send WebSocket ping/pong and avoid an aggressive idle timeout so the
+   socket stays open while a job runs. This matters most on the CPU path (§6.6), where a
+   transcription can take noticeably longer than on GPU.
+
+### 6.2 GPU job queue (VRAM safety)
+- A **single dedicated inference worker** owns the loaded model and is the only code that
+  touches the GPU. Requests reach it over an `mpsc` channel; each job carries the PCM
+  samples and a `oneshot` sender for the result.
+- Serializing inference through one worker prevents concurrent decodes from multiplying
+  VRAM use and is the simplest correct answer to the "job queue" requirement. Multiple
+  clients can connect concurrently; their finalize steps queue and are served in order.
+- Bound the queue depth (config) and reject/park excess with a clear error so a burst of
+  clients can't grow memory unboundedly.
+
+### 6.3 Model management
+- Load the default model at startup from config (mirrors PoC lifespan).
+- Runtime switching is handled **inside the worker** so it can't race with an in-flight
+  transcription: a `SetModel` command replaces the resident model (freeing the old one)
+  between jobs.
+- Contract currently exposes model switching only via a `/stream` JSON message; the PoC
+  also had a dedicated HTTP `/set_model`. See Open Question O4.
+
+### 6.4 Inference engine (`whisper-rs`)
+- **GPU vs CPU is a runtime flag, decided per policy (§6.6):** in a GPU-enabled build,
+  `whisper-rs` still chooses GPU or CPU per context via `use_gpu` (+ `gpu_device`).
+  Detect the GPU first and set the flag accordingly, rather than requesting the GPU
+  blindly (an absent device can make the GPU backend error instead of degrading).
+- Reuse a whisper state/context across jobs; feed 16 kHz mono `f32` samples.
+- Return `text` (trimmed, segments joined) plus elapsed ms.
+
+### 6.5 Audio handling
+- whisper.cpp expects 16 kHz mono `f32`. The contract lets clients send "PCM/FLAC".
+- Normalize on the server: detect/decode the incoming format, downmix to mono, resample
+  to 16 kHz. Nailing down the exact accepted formats is Open Question O3 (ideally the
+  client sends a known fixed format to keep the server path simple).
+
+### 6.6 GPU backends, build combinations & no-GPU policy
+Three independent concerns: (a) which backends are compiled in, (b) which one is used at
+runtime, (c) what happens when no GPU is present.
+
+**(a) Compile-time backends — multiple allowed, with limits.** `ggml` supports several
+backends compiled into one binary. Each maps to a `whisper-rs` Cargo feature / `GGML_*`
+define (the overlay maps its USE flags onto these, §9). The CPU backend is always
+present. Confirmed build compatibility (from the `whisper-rs-sys` build script):
+
+| Combination                 | Buildable | Notes |
+|-----------------------------|-----------|-------|
+| `nvidia` + `vulkan` + cpu   | Yes       | no compiler conflict; both link cleanly (laptop target) |
+| `rocm` + `vulkan` + cpu     | Likely    | AMD's `hipcc` also compiles the Vulkan backend — validate by build (O6) |
+| `nvidia` + `rocm`           | **No**    | CUDA can't build under `hipcc`; forbidden by `REQUIRED_USE` |
+| `openblas` (CPU accel)      | Yes       | accelerates the CPU path; combinable with any of the above |
+
+Rationale: `rocm` (`hipblas`) and `intel-sycl` each *override the C/C++ compiler*
+(`hipcc` / `icx`), so no two **native vendor** backends can coexist. `vulkan` and
+`openblas` do not, so they combine freely with a single native backend.
+
+**Backend → detection tool:** `nvidia` → `nvidia-smi`, `rocm` → `rocm-smi`,
+`vulkan` → `vulkaninfo`.
+
+**(b) Runtime device selection.** With multiple backends compiled in, `ggml`'s device
+registry enumerates available devices; whisper.cpp selects via `use_gpu` + `gpu_device`.
+The server tries devices in the operator-defined order from `DEVICE_PRIORITY` (§7),
+e.g. `cuda,vulkan,cpu` on the docked laptop — use CUDA when the eGPU is present, fall to
+Vulkan/CPU when it isn't. Exact preference when several GPUs are visible at once must be
+validated by test (O6).
+
+**(c) No-GPU policy (`GPU_MODE`, §7).** When no device from `DEVICE_PRIORITY` (other than
+CPU) is usable:
+  - `auto` → fall back to CPU (PoC parity: slower but "workable in a pinch").
+  - `require` → refuse to start / fail health, so the user knows to attach the GPU.
+
+**Linkage constraint:** a binary linked against a vendor backend still needs that
+vendor's userspace libraries present to load at all, even when running CPU-only. On
+Gentoo this is a non-issue — a host only sets `USE=nvidia` if it already has the NVIDIA
+libraries, etc. — which is exactly why backends are a build-time (USE-flag) decision.
+
+**Reserved for the future — `intel-sycl` (native Intel).** `whisper-rs` exposes an
+`intel-sycl` feature for Intel iGPUs/Arc, but it needs Intel's oneAPI compiler (`icx`)
+toolchain to build and we have no hardware to test it. It is **intentionally not exposed
+as a USE flag yet.** Vulkan already covers Intel iGPUs at lower toolchain cost. Nothing
+in this design precludes adding an `intel-sycl` USE flag later (it slots into the same
+"one native vendor backend" slot as `nvidia`/`rocm`).
+
+## 7. Configuration
+Following the PoC + ROADMAP, config comes from the environment / Gentoo `conf.d`:
+- `WHISPER_MODEL` (default `small.en`) — default model to load.
+- `BIND_ADDR` / `PORT` — listen address (see Open Question O1 on 8000 vs 3000).
+- `MODEL_DIR` — where whisper.cpp `.bin` model files live.
+- `MAX_QUEUE_DEPTH` — job queue bound.
+- `GPU_MODE` (`auto` | `require`, default `auto`) — when no usable GPU is detected,
+  `auto` falls back to CPU (PoC parity) and `require` fails instead of degrading (§6.6).
+  Independent of the compile-time backend chosen via USE flags (§9); a CPU-only build
+  ignores it and always runs on CPU.
+- `DEVICE_PRIORITY` (ordered list, e.g. `cuda,vulkan,cpu`) — the order in which the
+  server attempts to use compiled-in backends at runtime (§6.6b). First usable device
+  wins; `cpu` is the implicit last resort. Entries for backends not compiled in are
+  skipped. Lets one binary prefer the discrete eGPU when docked and gracefully step down
+  to Vulkan/iGPU/CPU when not.
+
+## 8. systemd & Hardware Detection
+- The Rust binary must be **service-manager friendly but not systemd-specific**: run in the
+  foreground, log to stdout/stderr, read config from the environment, and take no action
+  that assumes a particular init system. This keeps the source portable.
+- Upstream **may** ship a *reference* `systemd` unit as documentation/example (systemd
+  itself is cross-distro), but the **installed** unit — with Gentoo paths, `conf.d`
+  wiring, and USE-driven `ExecCondition` — is produced downstream by the overlay (§9).
+  (The existing `python-prototype/.../ai-voice-server.service` targets the PoC and stays
+  as-is.)
+- Reference-unit patterns worth carrying (the overlay will finalize them):
+  - `EnvironmentFile=-/etc/conf.d/ai-voice-server` for config.
+  - `Restart=on-failure`.
+- **Hardware detection depends on `GPU_MODE` (§7) and the compiled backend (§6.6):**
+  - `GPU_MODE=require`: gate startup with a backend-appropriate `ExecCondition`
+    (`nvidia-smi` for `nvidia`, `rocm-smi` for `rocm`, `vulkaninfo` for `vulkan`) so the
+    service **skips** (not fails) when the GPU is absent — the ROADMAP "graceful
+    degradation" behavior. Because the right condition depends on the enabled USE flags,
+    this belongs in the ebuild, not the source.
+  - `GPU_MODE=auto`: no `ExecCondition`; the service starts and runs CPU-only when the
+    GPU is missing.
+- `ExecStart` points at the compiled binary; no `LD_LIBRARY_PATH` hack needed — GPU libs
+  are resolved at build/link time and declared as overlay `RDEPEND`s.
+
+## 9. Packaging & the Upstream/Downstream Boundary
+This repo is **distribution-agnostic source**; Gentoo packaging lives in the separate
+`adaptive-overlay` repo. Responsibilities split as follows.
+
+### 9.1 Upstream (this repo) must expose the *mechanisms*
+- **Cargo features** that pass through to the corresponding `whisper-rs` features:
+  `nvidia` → `cuda`, `rocm` → `hipblas`, `vulkan` → `vulkan`, `openblas` → `openblas`.
+  Default feature set = none (plain CPU build).
+- **Runtime configuration via environment / config file** (§7) with sane defaults and no
+  hardcoded distro paths, so a packager can point it at `/etc/conf.d/...` without code
+  changes.
+- **Foreground, log-to-stdout** behavior so any service manager can supervise it.
+- Optional: a `client`/`server` split (workspace crates or bins) so the overlay can offer
+  matching USE flags per `ROADMAP.md`.
+
+### 9.2 Downstream (`adaptive-overlay`) owns the *policy*
+All of the following live in the overlay ebuild (e.g. a `media-sound/ai-voice-server`
+package), **not** in this repo — modeled on the existing `x11-terms/boxxy` ebuild
+(`inherit cargo git-r3`, `cargo_src_*`):
+- **USE flags → Cargo features:** `nvidia`, `rocm`, `vulkan`, `openblas` (+ `client`/`server`).
+- **`REQUIRED_USE`:** only native vendors are mutually exclusive — `?? ( nvidia rocm )`
+  (reserves the slot for a future `intel-sycl`). `vulkan`/`openblas` combine freely; CPU
+  is always built.
+- **`RDEPEND` per flag:** CUDA runtime (`nvidia`), ROCm/HIP (`rocm`), Vulkan loader
+  (`vulkan`), `sci-libs/openblas` (`openblas`).
+- **Install** the systemd unit (with the USE-driven `ExecCondition`) and a `conf.d` sample
+  documenting `GPU_MODE`, `DEVICE_PRIORITY`, and the other §7 variables; ship
+  `metadata.xml` describing the flags.
+
+### 9.3 Per-host build examples (the Gentoo model — each host builds for its own hardware)
+- **Laptop (eGPU + Intel iGPU):** `USE="nvidia vulkan openblas"` — CUDA when docked,
+  Vulkan for the Intel iGPU when mobile, OpenBLAS-accelerated CPU as final fallback.
+  Never `rocm` (no AMD card).
+- **Big AMD desktop (if it serves):** `USE="rocm vulkan openblas"` — native ROCm, Vulkan
+  fallback, fast CPU. Never `nvidia` (no NVIDIA drivers installed).
+
+**Self-hosting note:** server and client can co-reside on one machine over loopback. An
+undocked laptop can run the server *and* be its own client; the desktop can serve itself
+if the laptop is unavailable. No special design needed — both `client` and `server` USE
+flags enabled and the client pointed at `ws://127.0.0.1:<port>/stream`.
+
+## 10. Open Questions / Decisions Needed
+- **O1 — Port:** PoC uses `8000`; `architecture.md`/`api-contract.md` use `3000`. Pick
+  one for v2 and make it configurable. (Recommend making the contract's `3000` the
+  default and documenting it once.)
+- **O2 — Streaming granularity:** v2.0 finalizes on `end_stream` (single `is_final:true`).
+  Confirm interim `is_final:false` results are out of scope for the first cut.
+- **O3 — Audio format:** exact wire format(s) the client will send (raw PCM params? FLAC?).
+  A single fixed format (e.g. 16 kHz mono s16le PCM) would remove server-side decode
+  complexity entirely.
+- **O4 — Model-switch API:** keep switching WebSocket-only (per contract) or also expose
+  an HTTP endpoint like the PoC's `/set_model`? If HTTP is kept, add it to the contract.
+- **O5 — whisper.cpp model files:** the PoC used `faster-whisper` (CT2) model names;
+  whisper.cpp needs GGML/GGUF `.bin` files. Decide model sourcing/naming and the
+  `medium.en`↔file mapping.
+- **O6 — Multi-backend build/runtime validation:** confirm that `rocm + vulkan` builds
+  cleanly (AMD's `hipcc` compiling the Vulkan backend), and validate the runtime
+  `DEVICE_PRIORITY` preference ordering when multiple devices are visible at once
+  (e.g. discrete eGPU + Intel iGPU while docked). Needs a build/hardware test.
+
+### Resolved decisions
+- **Packaging separation (resolved):** this repo is distro-agnostic source exposing Cargo
+  features + config; all Gentoo ebuild/USE-flag/`RDEPEND` policy lives in `adaptive-overlay`
+  (§9).
+- **No-GPU behavior (resolved):** `GPU_MODE` config option (`auto` = CPU fallback,
+  `require` = fail) rather than hard-coded. See §7 / §6.6.
+- **Backend selection (resolved):** Cargo features `nvidia`/`rocm`/`vulkan`/`openblas`
+  (overlay USE flags); native `nvidia`↔`rocm` mutually exclusive, `vulkan`/`openblas`
+  combine freely, CPU always built. See §9 / §6.6.
+- **Runtime device order (resolved):** operator-set via `DEVICE_PRIORITY` (§7).
+- **AMD support (resolved):** yes — via `rocm` (native HIP) or `vulkan` (portable).
+- **CPU acceleration (resolved):** optional `openblas` feature/USE flag (recommended on
+  any host doing CPU inference, e.g. the undocked laptop); not mandatory so minimal
+  builds can skip the BLAS dependency.
+- **`intel-sycl` (deferred, not blocked):** not exposed as a feature/USE flag now (no test
+  hardware, heavy oneAPI toolchain); the design reserves a native-backend slot so it can
+  be added later without rework. See §6.6.
+
+## 11. Milestones
+1. **Scaffold:** `src/server/` Cargo project; Axum server; `GET /health` returning static
+   readiness. Resolve O1 (port).
+2. **Engine:** integrate `whisper-rs`; wire the `GPU_MODE` policy (GPU detect → `use_gpu`
+   flag, `auto` vs `require`); load default model at startup; transcribe a fixed WAV to
+   prove the GPU path (reuse `server/test_audio.wav`).
+3. **Queue:** single-worker GPU job queue with `mpsc` + `oneshot`; bounded depth.
+4. **Stream:** implement `/stream` (buffer → `end_stream` → job → JSON result) with WS
+   keepalive. Wire `/health` to real model/GPU state.
+5. **Model switching:** `set_model` via the worker (and O4's HTTP endpoint if chosen).
+6. **Audio:** decode/resample per O3.
+7. **Deploy:** ship the distro-agnostic bits from this repo (Cargo features, sample
+   config, optional reference systemd unit). The Gentoo ebuild — USE→feature mapping,
+   `REQUIRED_USE`, `RDEPEND`, `ExecCondition`, `conf.d` install — is authored separately
+   in `adaptive-overlay` (§9).
+
+## 12. Reference: PoC → v2 Endpoint Mapping
+| PoC (Python, :8000)        | v2 (Rust, contract)              | Notes |
+|----------------------------|----------------------------------|-------|
+| `POST /transcribe` (file)  | `WebSocket /stream`              | batch upload → streamed buffer |
+| `GET /status`              | `GET /health`                    | richer readiness/GPU payload |
+| `POST /set_model`          | `/stream` `set_model` msg (+O4?) | switch handled inside worker |
