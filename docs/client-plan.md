@@ -7,7 +7,10 @@
 - Must continuously record and stream audio chunks over WebSockets to the server for real-time transcription. (Note: Audio hardware is ONLY active when recording is toggled on. The WebSocket connection uses an internal client-side idle timer to stay alive for fast subsequent dictations, shutting down gracefully after inactivity).
 - Must support a toggle-based hotkey mode (press to start, press to stop) by default, freeing up the user's hands while dictating.
 - Must provide audio feedback (beeps/clicks) instead of visual notifications.
-- Must seamlessly inject transcribed text into the active window.
+- Must support three configurable text output modes:
+  1. **Buffered Clipboard (Default):** Audio is transcribed in the background. Stopping the recording copies the text to the Wayland clipboard (`wl-clipboard`), allowing the user to manually paste it.
+  2. **Buffered Auto-Type:** Audio is transcribed in the background. Stopping the recording instantly types the buffered text into the currently active window via `ydotool`.
+  3. **Live Injection:** Text is typed out word-by-word into the active window in real-time as the user speaks.
 
 ## 2. Technical Stack
 - **Language:** Rust
