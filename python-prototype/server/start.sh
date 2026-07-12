@@ -1,6 +1,6 @@
 #!/bin/bash
 # Add the local CUDA math libraries to the system path
-export LD_LIBRARY_PATH="/home/elias/code/ai-voice-server/.venv/lib/python3.14/site-packages/nvidia/cublas/lib:/home/elias/code/ai-voice-server/.venv/lib/python3.14/site-packages/nvidia/cudnn/lib:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="/home/elias/code/ai-voice-server/python-prototype/.venv/lib/python3.14/site-packages/nvidia/cublas/lib:/home/elias/code/ai-voice-server/python-prototype/.venv/lib/python3.14/site-packages/nvidia/cudnn/lib:$LD_LIBRARY_PATH"
 
 # Allow passing the model as the first argument (e.g., ./start.sh medium.en). 
 # If no argument is provided, default to small.en
