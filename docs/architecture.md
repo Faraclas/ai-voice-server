@@ -5,18 +5,19 @@ The AI Voice Server is a split-architecture dictation system designed for high p
 It consists of a lightweight **Client** running on the user's primary workstation and a dedicated **Server** running on a Gentoo Linux machine equipped with an NVIDIA GPU.
 
 ## 1. The Pipeline
-1. **Trigger:** The user presses a global hotkey on the Client.
-2. **Record:** The Client intercepts the hotkey and begins recording audio from the microphone.
-3. **Transmit:** Upon releasing the hotkey, the Client sends the audio payload over the local network to the Server.
-4. **Transcribe:** The Server receives the audio and processes it through a Whisper AI model loaded in GPU VRAM.
-5. **Format (Future):** The raw transcription is passed to a local LLM for formatting (e.g., executing commands like "new paragraph").
-6. **Return & Inject:** The Server returns the final text payload to the Client, which immediately injects it into the active window.
+1. **Trigger:** The user presses a global hotkey on the Client to toggle recording on.
+2. **Record:** The Client intercepts the hotkey, activates the microphone, and begins recording.
+3. **Transmit:** The Client streams audio chunks over a WebSocket connection to the Server in real-time.
+4. **Stop:** The user presses the hotkey again to toggle recording off, signaling the end of the stream.
+5. **Transcribe:** The Server processes the audio chunks through a Whisper AI model loaded in GPU VRAM.
+6. **Format (Future):** The raw transcription is passed to a local LLM for formatting (e.g., executing commands like "new paragraph").
+7. **Return & Inject:** The Server returns the final text payload to the Client, which immediately injects it into the active window.
 
 ## 2. Communication Protocol
-The system will use a simple HTTP/REST API (or WebSocket if streaming is desired). 
-- **Endpoint:** `POST /transcribe`
-- **Payload:** Raw audio data (WAV/FLAC)
-- **Response:** JSON containing the transcribed text and processing metrics.
+The system uses a WebSocket connection for low-latency, real-time streaming.
+- **Endpoint:** `WebSocket /stream`
+- **Payload:** Raw audio chunks (PCM/FLAC) streamed over binary messages.
+- **Response:** JSON messages containing the transcribed text and processing metrics.
 
 ## 3. Division of Responsibilities
 

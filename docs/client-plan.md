@@ -4,7 +4,8 @@
 
 ## 1. Core Requirements
 - Must integrate deeply with the Wayland desktop via `interception-tools` for global kernel-level hotkeys (bypassing VMs).
-- Must continuously record and stream audio chunks over WebSockets to the server for real-time transcription.
+- Must continuously record and stream audio chunks over WebSockets to the server for real-time transcription. (Note: Audio hardware is ONLY active when recording is toggled on. The WebSocket connection uses an internal client-side idle timer to stay alive for fast subsequent dictations, shutting down gracefully after inactivity).
+- Must support a toggle-based hotkey mode (press to start, press to stop) by default, freeing up the user's hands while dictating.
 - Must provide audio feedback (beeps/clicks) instead of visual notifications.
 - Must seamlessly inject transcribed text into the active window.
 
