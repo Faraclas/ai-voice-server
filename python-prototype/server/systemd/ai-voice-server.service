@@ -7,7 +7,7 @@ Documentation=https://github.com/your-username/ai-voice-server
 Type=simple
 User=elias
 Group=elias
-WorkingDirectory=/home/elias/code/ai-voice-server
+WorkingDirectory=/home/elias/code/ai-voice-server/python-prototype
 # Read configuration from Gentoo's standard conf.d directory
 EnvironmentFile=-/etc/conf.d/ai-voice-server
 
@@ -17,7 +17,7 @@ EnvironmentFile=-/etc/conf.d/ai-voice-server
 ExecCondition=/usr/bin/nvidia-smi
 
 # The start script accepts the model size as the first argument
-ExecStart=/home/elias/code/ai-voice-server/server/start.sh ${WHISPER_MODEL}
+ExecStart=/home/elias/code/ai-voice-server/python-prototype/server/start.sh ${WHISPER_MODEL}
 
 Restart=on-failure
 RestartSec=10

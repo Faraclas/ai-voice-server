@@ -6,18 +6,18 @@ This project allows a user to dictate on a client machine and have the audio pro
 ## Quick Start (Running the Server)
 To start the AI transcription server on the Gentoo machine, simply navigate to this directory and run the start script:
 ```bash
-cd ~/code/ai-voice-server
+cd ~/code/ai-voice-server/python-prototype
 ./server/start.sh
 ```
 *(By default, this will automatically load the `small.en` Whisper model into your GPU VRAM and start listening on port `8000` across your local network).*
 
 ## Architecture
-- **Server:** A FastAPI application (`server/server.py`) running `faster-whisper`. It keeps the AI model loaded in VRAM for instant, sub-second transcription.
-- **Client:** A push-to-talk bash script (`client/dictate.sh`) designed to be bound to a global system hotkey on a Wayland desktop. It records audio, handles the API request, and auto-pastes the result.
+- **Server:** A FastAPI application (`python-prototype/server/server.py`) running `faster-whisper`. It keeps the AI model loaded in VRAM for instant, sub-second transcription.
+- **Client:** A push-to-talk bash script (`python-prototype/client/dictate.sh`) designed to be bound to a global system hotkey on a Wayland desktop. It records audio, handles the API request, and auto-pastes the result.
 
 ## Setup
-- **Server:** Run `./server/start.sh` on the Gentoo machine to launch the API.
-- **Client:** See `client/README.md` for detailed instructions on setting up the dictation hotkey and kernel-level auto-typing.
+- **Server:** Run `./server/start.sh` from the `python-prototype` directory on the Gentoo machine to launch the API.
+- **Client:** See `python-prototype/client/README.md` for detailed instructions on setting up the dictation hotkey and kernel-level auto-typing.
 
 ---
 
