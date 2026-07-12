@@ -6,7 +6,8 @@
 - Must integrate deeply with the Wayland desktop via `interception-tools` for global kernel-level hotkeys (bypassing VMs).
 - Must continuously record and stream audio chunks over WebSockets to the server for real-time transcription. (Note: Audio hardware is ONLY active when recording is toggled on. The WebSocket connection uses an internal client-side idle timer to stay alive for fast subsequent dictations, shutting down gracefully after inactivity).
 - Must support a toggle-based hotkey mode (press to start, press to stop) by default, freeing up the user's hands while dictating.
-- Must provide audio feedback (beeps/clicks) instead of visual notifications.
+- Must provide a lightweight graphical UI (e.g., a system tray icon or small floating OSD) to visually indicate the active recording state (crucial for toggle mode) and to allow the user to easily toggle between text output modes without needing extra hotkeys.
+- Must provide subtle audio feedback (beeps/clicks) to confirm recording start/stop when the user isn't looking at the UI.
 - Must support three configurable text output modes:
   1. **Buffered Clipboard (Default):** Audio is transcribed in the background. Stopping the recording copies the text to the Wayland clipboard (`wl-clipboard`), allowing the user to manually paste it.
   2. **Buffered Auto-Type:** Audio is transcribed in the background. Stopping the recording instantly types the buffered text into the currently active window via `ydotool`.
