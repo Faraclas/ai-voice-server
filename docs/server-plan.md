@@ -4,13 +4,14 @@
 
 ## 1. Core Requirements
 - Must run as a persistent background daemon (systemd).
-- Must expose an HTTP API to receive audio payloads.
+- Must expose a WebSocket API (`/stream`) for real-time audio streaming and transcription.
+- Must implement a concurrency Job Queue to prevent GPU VRAM exhaustion from multiple simultaneous clients.
 - Must execute AI transcription natively using the NVIDIA GPU.
 
 ## 2. Technical Stack
-- **Language:** [TBD: Rust or Go]
-- **Web Framework:** [TBD]
-- **AI Inference:** [TBD: whisper.cpp bindings]
+- **Language:** Rust
+- **Web Framework:** Axum (fast, ergonomic, built on Tokio)
+- **AI Inference:** `whisper.cpp` (via `whisper-rs` bindings)
 
 ## 3. Implementation Steps
 1. Setup project structure and dependencies.
