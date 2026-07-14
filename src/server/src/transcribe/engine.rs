@@ -1,5 +1,4 @@
-use crate::config::{AppConfig, GpuMode};
-use std::process::Command;
+use crate::config::AppConfig;
 use whisper_rs::{FullParams, WhisperContext, WhisperContextParameters};
 use std::path::Path;
 
@@ -10,45 +9,8 @@ pub struct WhisperEngine {
 
 impl WhisperEngine {
     pub fn new(config: &AppConfig, model_name: &str) -> Result<Self, String> {
-        let mut use_gpu = false;
-        
-        let mut active_device = "cpu".to_string();
-
-        for dev in &config.device_priority {
-            match dev.as_str() {
-                "cuda" | "nvidia" => {
-                    if Command::new("nvidia-smi").output().is_ok() {
-                        use_gpu = true;
-                        active_device = "cuda".to_string();
-                        break;
-                    }
-                }
-                "rocm" | "hip" => {
-                    if Command::new("rocm-smi").output().is_ok() {
-                        use_gpu = true;
-                        active_device = "rocm".to_string();
-                        break;
-                    }
-                }
-                "vulkan" => {
-                    if Command::new("vulkaninfo").output().is_ok() {
-                        use_gpu = true;
-                        active_device = "vulkan".to_string();
-                        break;
-                    }
-                }
-                "cpu" => {
-                    use_gpu = false;
-                    active_device = "cpu".to_string();
-                    break;
-                }
-                _ => {}
-            }
-        }
-
-        if !use_gpu && config.gpu_mode == GpuMode::Require {
-            return Err("GPU is required by config but no valid GPU was detected.".into());
-        }
+        let use_gpu = config.use_gpu;
+        let active_device = &config.active_device;
 
         // Try .bin or .gguf since we use GGUF now
         let mut model_path = Path::new(&config.model_dir).join(format!("{}.gguf", model_name));

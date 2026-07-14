@@ -22,6 +22,12 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                 Message::Binary(data) => {
                     // Collect audio chunk
                     audio_buffer.extend(data);
+                    
+                    // Prevent OOM by capping at 60 seconds (16kHz 16-bit PCM = 32,000 bytes/sec)
+                    if audio_buffer.len() > 1_920_000 {
+                        println!("Audio buffer exceeded maximum size, forcing end of stream.");
+                        break;
+                    }
                 }
                 Message::Text(text) => {
                     // Parse control message
