@@ -40,7 +40,7 @@ impl NetworkClient {
         let url = Url::parse(&self.ws_url).context("Invalid WebSocket URL")?;
         info!("Connecting to WebSocket at {}...", url);
 
-        let (ws_stream, _) = connect_async(url).await.context("Failed to connect to WebSocket")?;
+        let (ws_stream, _) = connect_async(url.as_str()).await.context("Failed to connect to WebSocket")?;
         info!("WebSocket connected successfully");
 
         let (mut write, mut read) = ws_stream.split();

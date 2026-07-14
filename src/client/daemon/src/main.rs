@@ -10,6 +10,8 @@ use tokio::net::UdpSocket;
 use tokio::sync::mpsc;
 use tokio::process::Command;
 use std::env;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 const DAEMON_ADDR: &str = "127.0.0.1:9999";
 const APP_ID: &str = "com.github.faraclas.ai-voice-client";
@@ -34,10 +36,10 @@ fn main() -> Result<()> {
     info!("Configured to connect to AI Voice Server at: {}", ws_url);
 
     // Channels for inter-thread communication
-    let (hotkey_tx, mut hotkey_rx) = mpsc::channel::<HotkeyEvent>(32);
+    let (hotkey_tx, hotkey_rx) = mpsc::channel::<HotkeyEvent>(32);
     let (audio_ctl_tx, audio_ctl_rx) = mpsc::channel::<bool>(2);
     let (audio_data_tx, audio_data_rx) = mpsc::channel::<Vec<u8>>(100);
-    let (text_tx, mut text_rx) = mpsc::channel::<String>(10);
+    let (text_tx, text_rx) = mpsc::channel::<String>(10);
 
     // 1. Start Audio Capture Subsystem
     audio::start_audio_capture(audio_ctl_rx, audio_data_tx)?;
@@ -76,58 +78,64 @@ fn main() -> Result<()> {
     // 3. Main GUI Thread (GTK)
     let app = Application::builder().application_id(APP_ID).build();
     
+    // Wrap receivers in Rc<RefCell<Option<T>>> so they can be moved into the Fn closure once
+    let hotkey_rx_opt = Rc::new(RefCell::new(Some(hotkey_rx)));
+    let text_rx_opt = Rc::new(RefCell::new(Some(text_rx)));
+
     app.connect_activate(move |app| {
         let window = ui::build_ui(app);
         
         // Setup GLib MainContext to process Tokio events safely in the GTK thread
         let main_context = gtk4::glib::MainContext::default();
         
-        // Task 1: Handle Hotkey UI Toggling
-        main_context.spawn_local(async move {
-            info!("GTK event loop connected. Listening for hotkeys...");
-            while let Some(event) = hotkey_rx.recv().await {
-                match event {
-                    HotkeyEvent::Press => {
-                        info!("Hotkey Pressed - Starting Recording");
-                        window.set_visible(true);
-                        let _ = audio_ctl_tx.send(true).await;
-                    }
-                    HotkeyEvent::Release => {
-                        info!("Hotkey Released - Stopping Recording");
-                        window.set_visible(false);
-                        let _ = audio_ctl_tx.send(false).await;
+        if let Some(mut rx) = hotkey_rx_opt.borrow_mut().take() {
+            let audio_tx = audio_ctl_tx.clone();
+            main_context.spawn_local(async move {
+                info!("GTK event loop connected. Listening for hotkeys...");
+                while let Some(event) = rx.recv().await {
+                    match event {
+                        HotkeyEvent::Press => {
+                            info!("Hotkey Pressed - Starting Recording");
+                            window.set_visible(true);
+                            let _ = audio_tx.send(true).await;
+                        }
+                        HotkeyEvent::Release => {
+                            info!("Hotkey Released - Stopping Recording");
+                            window.set_visible(false);
+                            let _ = audio_tx.send(false).await;
+                        }
                     }
                 }
-            }
-        });
+            });
+        }
 
-        // Task 2: Handle Incoming Text and Ydotool Injection
-        main_context.spawn_local(async move {
-            info!("Listening for transcription results...");
-            
-            // Listen for final text transcriptions and inject them using ydotool
-            while let Some(text) = text_rx.recv().await {
-                info!("Injecting text: {}", text);
+        if let Some(mut rx) = text_rx_opt.borrow_mut().take() {
+            main_context.spawn_local(async move {
+                info!("Listening for transcription results...");
                 
-                let output = Command::new("ydotool")
-                    .arg("type")
-                    .arg(&text)
-                    .output()
-                    .await;
-                
-                match output {
-                    Ok(o) if o.status.success() => {
-                        info!("Successfully injected text.");
-                    }
-                    Ok(o) => {
-                        error!("ydotool failed: {:?}", String::from_utf8_lossy(&o.stderr));
-                    }
-                    Err(e) => {
-                        error!("Failed to execute ydotool (is the daemon running?): {}", e);
+                while let Some(text) = rx.recv().await {
+                    info!("Injecting text: {}", text);
+                    
+                    let output = Command::new("ydotool")
+                        .arg("type")
+                        .arg(&text)
+                        .output()
+                        .await;
+                    
+                    match output {
+                        Ok(o) if o.status.success() => {
+                            info!("Successfully injected text.");
+                        }
+                        Ok(o) => {
+                            error!("ydotool failed: {:?}", String::from_utf8_lossy(&o.stderr));
+                        }
+                        Err(e) => {
+                            error!("Failed to execute ydotool (is the daemon running?): {}", e);
+                        }
                     }
                 }
-            }
-        });
+            });
+        }
     });
 
     app.run();
