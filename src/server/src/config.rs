@@ -41,7 +41,7 @@ impl AppConfig {
             _ => GpuMode::Auto,
         };
         
-        let device_priority_str = std::env::var("DEVICE_PRIORITY").unwrap_or_else(|_| "cuda,vulkan,cpu".to_string());
+        let device_priority_str = std::env::var("DEVICE_PRIORITY").unwrap_or_else(|_| "cuda,rocm,vulkan,cpu".to_string());
         let device_priority: Vec<String> = device_priority_str
             .split(',')
             .map(|s| s.trim().to_lowercase())
