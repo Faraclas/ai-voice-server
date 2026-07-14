@@ -13,6 +13,62 @@ pub async fn stream_handler(
     ws.on_upgrade(move |socket| handle_socket(socket, state))
 }
 
+async fn download_model(model: &str, model_dir: &str, socket: &mut WebSocket) -> Result<(), String> {
+    let file_path = std::path::Path::new(model_dir).join(format!("{}.gguf", model));
+    if file_path.exists() {
+        return Ok(());
+    }
+
+    let _ = socket.send(Message::Text(serde_json::json!({
+        "status": "downloading",
+        "progress_pct": 0.0
+    }).to_string().into())).await;
+
+    tokio::fs::create_dir_all(model_dir).await.map_err(|e| format!("Failed to create model dir: {}", e))?;
+
+    let url = format!("https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-{}.bin", model);
+    let response = reqwest::get(&url).await.map_err(|e| format!("Reqwest failed: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("HTTP error: {}", response.status()));
+    }
+
+    let total_size = response.content_length().unwrap_or(0);
+    
+    let mut file = tokio::fs::File::create(&file_path).await.map_err(|e| format!("Failed to create file: {}", e))?;
+    let mut downloaded: u64 = 0;
+    let mut last_reported_pct = -1.0;
+
+    use futures_util::StreamExt;
+    use tokio::io::AsyncWriteExt;
+
+    let mut stream = response.bytes_stream();
+    while let Some(item) = stream.next().await {
+        let chunk = item.map_err(|e| format!("Stream error: {}", e))?;
+        file.write_all(&chunk).await.map_err(|e| format!("Write error: {}", e))?;
+        downloaded += chunk.len() as u64;
+
+        if total_size > 0 {
+            let pct = (downloaded as f64 / total_size as f64) * 100.0;
+            // Report every 1% to avoid spamming the websocket
+            if pct - last_reported_pct >= 1.0 {
+                let _ = socket.send(Message::Text(serde_json::json!({
+                    "status": "downloading",
+                    "progress_pct": (pct * 10.0).round() / 10.0
+                }).to_string().into())).await;
+                last_reported_pct = pct;
+            }
+        }
+    }
+
+    let _ = socket.send(Message::Text(serde_json::json!({
+        "status": "downloading",
+        "progress_pct": 100.0
+    }).to_string().into())).await;
+
+    Ok(())
+}
+
 async fn handle_socket(mut socket: WebSocket, state: AppState) {
     let mut audio_buffer = Vec::new();
 
@@ -20,22 +76,39 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
         if let Ok(msg) = msg {
             match msg {
                 Message::Binary(data) => {
-                    // Collect audio chunk
                     audio_buffer.extend(data);
-                    
-                    // Prevent OOM by capping at 60 seconds (16kHz 16-bit PCM = 32,000 bytes/sec)
                     if audio_buffer.len() > 1_920_000 {
                         println!("Audio buffer exceeded maximum size, forcing end of stream.");
                         break;
                     }
                 }
                 Message::Text(text) => {
-                    // Parse control message
                     if let Ok(json) = serde_json::from_str::<Value>(&text) {
                         if let Some(action) = json.get("action").and_then(|a| a.as_str()) {
                             if action == "set_model" {
                                 if let Some(model) = json.get("model").and_then(|m| m.as_str()) {
-                                    let _ = state.queue.set_model(model.to_string()).await;
+                                    match download_model(model, &state.config.model_dir, &mut socket).await {
+                                        Ok(_) => {
+                                            match state.queue.set_model(model.to_string()).await {
+                                                Ok(_) => {
+                                                    let _ = socket.send(Message::Text(serde_json::json!({
+                                                        "status": "success",
+                                                        "message": format!("Successfully loaded {}", model)
+                                                    }).to_string().into())).await;
+                                                }
+                                                Err(e) => {
+                                                    let _ = socket.send(Message::Text(serde_json::json!({
+                                                        "error": format!("Failed to load model into VRAM: {}", e)
+                                                    }).to_string().into())).await;
+                                                }
+                                            }
+                                        }
+                                        Err(e) => {
+                                            let _ = socket.send(Message::Text(serde_json::json!({
+                                                "error": format!("Download failed: {}", e)
+                                            }).to_string().into())).await;
+                                        }
+                                    }
                                 }
                             } else if action == "end_stream" {
                                 break;
@@ -44,18 +117,16 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                     }
                 }
                 Message::Close(_) => {
-                    return; // Client disconnected early
+                    return; 
                 }
                 _ => {}
             }
         } else {
-            return; // Error receiving message
+            return; 
         }
     }
 
-    // Process audio buffer
     if !audio_buffer.is_empty() {
-        // Convert to f32 PCM
         let mut f32_audio = Vec::new();
         for chunk in audio_buffer.chunks_exact(2) {
             let sample = i16::from_le_bytes([chunk[0], chunk[1]]);
