@@ -1,0 +1,11 @@
+/home/elias/code/ai-voice-server/src/client/target/debug/deps/env_logger-60875da8392aaef7.d: /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_logger-0.11.11/src/lib.rs /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_logger-0.11.11/src/logger.rs /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_logger-0.11.11/src/writer/mod.rs /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_logger-0.11.11/src/writer/buffer.rs /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_logger-0.11.11/src/writer/target.rs /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_logger-0.11.11/src/fmt/mod.rs /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_logger-0.11.11/src/fmt/humantime.rs
+
+/home/elias/code/ai-voice-server/src/client/target/debug/deps/libenv_logger-60875da8392aaef7.rmeta: /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_logger-0.11.11/src/lib.rs /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_logger-0.11.11/src/logger.rs /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_logger-0.11.11/src/writer/mod.rs /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_logger-0.11.11/src/writer/buffer.rs /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_logger-0.11.11/src/writer/target.rs /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_logger-0.11.11/src/fmt/mod.rs /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_logger-0.11.11/src/fmt/humantime.rs
+
+/home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_logger-0.11.11/src/lib.rs:
+/home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_logger-0.11.11/src/logger.rs:
+/home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_logger-0.11.11/src/writer/mod.rs:
+/home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_logger-0.11.11/src/writer/buffer.rs:
+/home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_logger-0.11.11/src/writer/target.rs:
+/home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_logger-0.11.11/src/fmt/mod.rs:
+/home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/env_logger-0.11.11/src/fmt/humantime.rs:

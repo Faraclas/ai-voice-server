@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "daemon",
+    "interception_plugin"
+]
+resolver = "2"

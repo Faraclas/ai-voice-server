@@ -1,0 +1,11 @@
+/home/elias/code/ai-voice-server/src/client/target/debug/deps/cookie_factory-cfbe9b3d6b8590ac.d: /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-factory-0.3.3/src/lib.rs /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-factory-0.3.3/src/gen.rs /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-factory-0.3.3/src/internal.rs /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-factory-0.3.3/src/bytes.rs /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-factory-0.3.3/src/combinator.rs /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-factory-0.3.3/src/multi.rs /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-factory-0.3.3/src/sequence.rs
+
+/home/elias/code/ai-voice-server/src/client/target/debug/deps/libcookie_factory-cfbe9b3d6b8590ac.rmeta: /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-factory-0.3.3/src/lib.rs /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-factory-0.3.3/src/gen.rs /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-factory-0.3.3/src/internal.rs /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-factory-0.3.3/src/bytes.rs /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-factory-0.3.3/src/combinator.rs /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-factory-0.3.3/src/multi.rs /home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-factory-0.3.3/src/sequence.rs
+
+/home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-factory-0.3.3/src/lib.rs:
+/home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-factory-0.3.3/src/gen.rs:
+/home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-factory-0.3.3/src/internal.rs:
+/home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-factory-0.3.3/src/bytes.rs:
+/home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-factory-0.3.3/src/combinator.rs:
+/home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-factory-0.3.3/src/multi.rs:
+/home/elias/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cookie-factory-0.3.3/src/sequence.rs:

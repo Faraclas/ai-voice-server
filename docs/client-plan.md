@@ -32,7 +32,11 @@
 
 ## 2. Technical Stack
 
-- **Language:** Rust
+- **Language:** Rust (Cargo Workspace)
+- **Architecture:** Two separate binaries to preserve root security boundaries:
+  - `interception_plugin`: A lightweight, dependency-free root plugin managed by `udevmon` for global hotkey capture.
+  - `daemon`: The main user-level application handling Wayland UI, audio, and networking.
+- **UI Toolkit:** GTK4 via `gtk4-layer-shell` for Wayland-native OSDs and UI.
 - **Audio Capture:** PipeWire (via `pipewire-rs`)
 - **Text Injection:** `ydotool` (simulates a virtual keyboard via `/dev/uinput`
   to universally inject text, natively bypassing GNOME's strict Wayland security
