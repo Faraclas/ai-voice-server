@@ -50,6 +50,7 @@ fn main() {
 
     let mut buf = [0u8; 24]; // sizeof(input_event) on 64-bit Linux
     let mut modifier_pressed = false;
+    let mut is_active = false;
 
     loop {
         if io::stdin().read_exact(&mut buf).is_err() {
@@ -75,16 +76,25 @@ fn main() {
                 }
             }
 
-            // Check if it's our target key and the modifier requirement is met
+            // Check if it's our target key
             if event.code == target_key {
                 let mod_ok = match target_mod {
                     Some(_) => modifier_pressed,
                     None => true,
                 };
 
-                if mod_ok {
-                    if event.value == KEY_PRESS || event.value == KEY_RELEASE {
-                        let msg: &[u8] = if event.value == KEY_PRESS { b"PRESS" } else { b"RELEASE" };
+                // Trigger press if modifier is ok
+                // Trigger release if we are currently active (even if modifier was released early)
+                let should_trigger = (event.value == KEY_PRESS && mod_ok) || (event.value == KEY_RELEASE && is_active);
+
+                if should_trigger {
+                    if event.value == KEY_PRESS {
+                        is_active = true;
+                        let msg: &[u8] = b"PRESS";
+                        let _ = socket.send_to(msg, daemon_addr);
+                    } else if event.value == KEY_RELEASE {
+                        is_active = false;
+                        let msg: &[u8] = b"RELEASE";
                         let _ = socket.send_to(msg, daemon_addr);
                     }
                     

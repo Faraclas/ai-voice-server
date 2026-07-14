@@ -8,7 +8,7 @@ use log::{error, info};
 use std::sync::Arc;
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc;
-use std::process::Command;
+use tokio::process::Command;
 use std::env;
 
 const DAEMON_ADDR: &str = "127.0.0.1:9999";
@@ -112,7 +112,8 @@ fn main() -> Result<()> {
                 let output = Command::new("ydotool")
                     .arg("type")
                     .arg(&text)
-                    .output();
+                    .output()
+                    .await;
                 
                 match output {
                     Ok(o) if o.status.success() => {
