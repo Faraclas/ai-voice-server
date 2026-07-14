@@ -4,19 +4,31 @@ A completely self-hosted, highly accurate, and GPU-accelerated voice dictation p
 This project allows a user to dictate on a client machine and have the audio processed by a dedicated AI server (Gentoo Linux with an NVIDIA GPU), returning the text directly to the client's clipboard or auto-typing it into the currently focused window.
 
 ## Quick Start (Running the Server)
-To start the AI transcription server on the Gentoo machine, simply navigate to this directory and run the start script:
+
+**Production Version (v2 - Rust):**
+The new system-level Rust server is located in `src/server`. It uses `dotenvy` for local configuration.
+```bash
+cd ~/code/ai-voice-server/src/server
+cp .env.example .env
+# Edit .env to set BIND_ADDR=0.0.0.0 if connecting from a remote client
+cargo run --release
+```
+*(By default, this loads the `small.en` Whisper model into GPU VRAM and listens on port `3000`)*
+
+**Proof of Concept (v1 - Python):**
+To start the legacy Python PoC, navigate to `python-prototype` and run the script:
 ```bash
 cd ~/code/ai-voice-server/python-prototype
 ./server/start.sh
 ```
-*(By default, this will automatically load the `small.en` Whisper model into your GPU VRAM and start listening on port `8000` across your local network).*
 
 ## Architecture
-- **Server:** A FastAPI application (`python-prototype/server/server.py`) running `faster-whisper`. It keeps the AI model loaded in VRAM for instant, sub-second transcription.
+- **Server (v2):** A native Rust application (`src/server/`) using `axum` and `whisper-rs`. It is highly concurrent, gracefully degrades to CPU if the GPU is missing, and protects VRAM via a single-worker job queue.
+- **Server (v1 PoC):** A FastAPI application (`python-prototype/server/server.py`) running `faster-whisper`.
 - **Client:** A push-to-talk bash script (`python-prototype/client/dictate.sh`) designed to be bound to a global system hotkey on a Wayland desktop. It records audio, handles the API request, and auto-pastes the result.
 
 ## Setup
-- **Server:** Run `./server/start.sh` from the `python-prototype` directory on the Gentoo machine to launch the API.
+- **Server (v2):** Configure via `.env` for local testing, or `/etc/conf.d/ai-voice-server` for production systemd deployments.
 - **Client:** See `python-prototype/client/README.md` for detailed instructions on setting up the dictation hotkey and kernel-level auto-typing.
 
 ---

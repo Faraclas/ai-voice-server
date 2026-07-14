@@ -1,6 +1,6 @@
 # Server Implementation Plan (v2)
 
-Status: **Planning.** This document plans the production **v2** server, a native
+Status: **Implemented.** This document plans the production **v2** server, a native
 Rust rewrite of the Python PoC in `python-prototype/server/`. Per `ROADMAP.md`,
 the PoC stays untouched as a working baseline; v2 is built alongside it in
 `src/server/`.
@@ -232,7 +232,8 @@ slot as `nvidia`/`rocm`).
 ## 7. Configuration
 
 Following the PoC + ROADMAP, config comes from the environment / Gentoo
-`conf.d`:
+`conf.d`. The server also uses `dotenvy` to automatically load a `.env` file 
+from the working directory if one exists, simplifying local testing.
 
 - `WHISPER_MODEL` (default `small.en`) — default model to load.
 - `PORT` (default `3000`) — listen port.
