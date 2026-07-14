@@ -108,3 +108,85 @@ impl NetworkClient {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::net::TcpListener;
+    use tokio_tungstenite::accept_async;
+    use futures_util::SinkExt;
+
+    #[test]
+    fn test_server_message_deserialization() {
+        // Test standard transcription payload
+        let json1 = r#"{"text": "Hello world", "is_final": true, "processing_time_ms": 150}"#;
+        let msg1: ServerMessage = serde_json::from_str(json1).unwrap();
+        assert_eq!(msg1.text, Some("Hello world".to_string()));
+        assert_eq!(msg1.is_final, Some(true));
+        assert_eq!(msg1.processing_time_ms, Some(150));
+        assert_eq!(msg1.status, None);
+
+        // Test dynamic downloading payload
+        let json2 = r#"{"status": "downloading", "progress_pct": 45.2}"#;
+        let msg2: ServerMessage = serde_json::from_str(json2).unwrap();
+        assert_eq!(msg2.text, None);
+        assert_eq!(msg2.is_final, None);
+        assert_eq!(msg2.status, Some("downloading".to_string()));
+        assert_eq!(msg2.progress_pct, Some(45.2));
+        
+        // Test ready payload
+        let json3 = r#"{"status": "ready"}"#;
+        let msg3: ServerMessage = serde_json::from_str(json3).unwrap();
+        assert_eq!(msg3.status, Some("ready".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_network_client_mock_server() {
+        // 1. Spin up a dummy WebSocket server on a random local port
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let ws_url = format!("ws://{}/stream", addr);
+
+        // Run the server in the background
+        let server_task = tokio::spawn(async move {
+            if let Ok((stream, _)) = listener.accept().await {
+                if let Ok(mut ws_stream) = accept_async(stream).await {
+                    // Simulate receiving an audio chunk and immediately responding
+                    if let Some(_) = ws_stream.next().await {
+                        let response = r#"{"text": "Mock response", "is_final": true}"#;
+                        let _ = ws_stream.send(Message::Text(response.into())).await;
+                        // Intentionally close the connection
+                        let _ = ws_stream.close(None).await;
+                    }
+                }
+            }
+        });
+
+        // 2. Start the Network Client
+        let client = NetworkClient::new(&ws_url);
+        let (audio_tx, audio_rx) = mpsc::channel(10);
+        let (text_tx, mut text_rx) = mpsc::channel(10);
+        let (status_tx, _status_rx) = mpsc::channel(10);
+
+        let client_task = tokio::spawn(async move {
+            let _ = client.start(audio_rx, text_tx, status_tx).await;
+        });
+
+        // 3. Send a dummy binary chunk to trigger the server interaction, followed by an empty chunk to trigger end_stream
+        let _ = audio_tx.send(vec![0x00, 0x01]).await;
+        let _ = audio_tx.send(vec![]).await;
+        drop(audio_tx);
+
+        // 4. Verify we got the expected text response despite the imminent closure
+        if let Some(text) = text_rx.recv().await {
+            assert_eq!(text, "Mock response");
+        } else {
+            panic!("Did not receive expected response from mock server");
+        }
+
+        // Wait for tasks to exit cleanly without crashing
+        let _ = server_task.await;
+        let _ = client_task.await;
+    }
+}
+
