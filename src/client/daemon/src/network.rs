@@ -14,9 +14,11 @@ pub struct ClientMessage {
 
 #[derive(Deserialize, Debug)]
 pub struct ServerMessage {
-    pub text: String,
-    pub is_final: bool,
+    pub text: Option<String>,
+    pub is_final: Option<bool>,
     pub processing_time_ms: Option<u64>,
+    pub status: Option<String>,
+    pub progress_pct: Option<f64>,
 }
 
 pub struct NetworkClient {
@@ -36,6 +38,7 @@ impl NetworkClient {
         &self,
         mut audio_rx: mpsc::Receiver<Vec<u8>>,
         text_tx: mpsc::Sender<String>,
+        status_tx: mpsc::Sender<(String, Option<f64>)>,
     ) -> Result<()> {
         let url = Url::parse(&self.ws_url).context("Invalid WebSocket URL")?;
         info!("Connecting to WebSocket at {}...", url);
@@ -51,9 +54,13 @@ impl NetworkClient {
                 match msg {
                     Ok(Message::Text(t)) => {
                         if let Ok(response) = serde_json::from_str::<ServerMessage>(&t) {
-                            if response.is_final {
-                                debug!("Received final transcription: {}", response.text);
-                                let _ = text_tx.send(response.text).await;
+                            if response.is_final == Some(true) {
+                                if let Some(text) = response.text {
+                                    debug!("Received final transcription: {}", text);
+                                    let _ = text_tx.send(text).await;
+                                }
+                            } else if let Some(status) = response.status {
+                                let _ = status_tx.send((status, response.progress_pct)).await;
                             }
                         } else {
                             error!("Failed to parse server JSON: {}", t);

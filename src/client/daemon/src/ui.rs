@@ -1,7 +1,7 @@
 use gtk4::{prelude::*, Application, ApplicationWindow, Label};
 use gtk4_layer_shell::{Layer, LayerShell};
 
-pub fn build_ui(app: &Application) -> ApplicationWindow {
+pub fn build_ui(app: &Application) -> (ApplicationWindow, Label) {
     let label = Label::builder()
         .label("🎙️ Recording...")
         .margin_top(12)
@@ -31,5 +31,5 @@ pub fn build_ui(app: &Application) -> ApplicationWindow {
     // Keep it hidden initially
     window.set_visible(false);
     
-    window
+    (window, label)
 }

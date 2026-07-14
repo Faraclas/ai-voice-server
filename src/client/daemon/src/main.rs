@@ -40,6 +40,7 @@ fn main() -> Result<()> {
     let (audio_ctl_tx, audio_ctl_rx) = mpsc::channel::<bool>(2);
     let (audio_data_tx, audio_data_rx) = mpsc::channel::<Vec<u8>>(100);
     let (text_tx, text_rx) = mpsc::channel::<String>(10);
+    let (status_tx, status_rx) = mpsc::channel::<(String, Option<f64>)>(10);
 
     // 1. Start Audio Capture Subsystem
     audio::start_audio_capture(audio_ctl_rx, audio_data_tx)?;
@@ -51,8 +52,8 @@ fn main() -> Result<()> {
             // Spawn WebSocket Client Task
             let net_client = network::NetworkClient::new(&ws_url);
             tokio::spawn(async move {
-                if let Err(e) = net_client.start(audio_data_rx, text_tx).await {
-                    error!("WebSocket client error: {}", e);
+                if let Err(e) = net_client.start(audio_data_rx, text_tx, status_tx).await {
+                    error!("Network client error: {}", e);
                 }
             });
 
@@ -81,9 +82,12 @@ fn main() -> Result<()> {
     // Wrap receivers in Rc<RefCell<Option<T>>> so they can be moved into the Fn closure once
     let hotkey_rx_opt = Rc::new(RefCell::new(Some(hotkey_rx)));
     let text_rx_opt = Rc::new(RefCell::new(Some(text_rx)));
+    let status_rx_opt = Rc::new(RefCell::new(Some(status_rx)));
 
     app.connect_activate(move |app| {
-        let window = ui::build_ui(app);
+        let (window, label) = ui::build_ui(app);
+        let window_clone = window.clone();
+        let label_clone = label.clone();
         
         // Setup GLib MainContext to process Tokio events safely in the GTK thread
         let main_context = gtk4::glib::MainContext::default();
@@ -96,6 +100,7 @@ fn main() -> Result<()> {
                     match event {
                         HotkeyEvent::Press => {
                             info!("Hotkey Pressed - Starting Recording");
+                            label.set_text("🎙️ Recording...");
                             window.set_visible(true);
                             let _ = audio_tx.send(true).await;
                         }
@@ -132,6 +137,27 @@ fn main() -> Result<()> {
                         Err(e) => {
                             error!("Failed to execute ydotool (is the daemon running?): {}", e);
                         }
+                    }
+                }
+            });
+        }
+        
+        if let Some(mut rx) = status_rx_opt.borrow_mut().take() {
+            main_context.spawn_local(async move {
+                info!("Listening for server status updates...");
+                while let Some((status, pct)) = rx.recv().await {
+                    if status == "downloading" {
+                        if !window_clone.is_visible() {
+                            window_clone.set_visible(true);
+                        }
+                        if let Some(p) = pct {
+                            label_clone.set_text(&format!("📥 Downloading Model... {:.1}%", p));
+                        } else {
+                            label_clone.set_text("📥 Downloading Model...");
+                        }
+                    } else if status == "ready" {
+                        window_clone.set_visible(false);
+                        label_clone.set_text("🎙️ Recording...");
                     }
                 }
             });
