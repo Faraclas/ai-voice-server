@@ -5,6 +5,7 @@ use axum::{
 };
 use crate::AppState;
 use serde_json::Value;
+use tokio::time::{timeout, Duration};
 
 pub async fn stream_handler(
     ws: WebSocketUpgrade,
@@ -69,85 +70,100 @@ async fn download_model(model: &str, model_dir: &str, socket: &mut WebSocket) ->
     Ok(())
 }
 
+
 async fn handle_socket(mut socket: WebSocket, state: AppState) {
     let mut audio_buffer = Vec::new();
+    let timeout_duration = Duration::from_secs(5 * 60);
 
-    while let Some(msg) = socket.recv().await {
-        if let Ok(msg) = msg {
-            match msg {
-                Message::Binary(data) => {
-                    audio_buffer.extend(data);
-                    if audio_buffer.len() > 1_920_000 {
-                        println!("Audio buffer exceeded maximum size, forcing end of stream.");
-                        break;
+    loop {
+        match timeout(timeout_duration, socket.recv()).await {
+            Ok(Some(Ok(msg))) => {
+                match msg {
+                    Message::Binary(data) => {
+                        audio_buffer.extend(data);
+                        if audio_buffer.len() > 1_920_000 {
+                            println!("Audio buffer exceeded maximum size, forcing end of stream.");
+                            process_audio(&mut audio_buffer, &mut socket, &state).await;
+                        }
                     }
-                }
-                Message::Text(text) => {
-                    if let Ok(json) = serde_json::from_str::<Value>(&text) {
-                        if let Some(action) = json.get("action").and_then(|a| a.as_str()) {
-                            if action == "set_model" {
-                                if let Some(model) = json.get("model").and_then(|m| m.as_str()) {
-                                    match download_model(model, &state.config.model_dir, &mut socket).await {
-                                        Ok(_) => {
-                                            match state.queue.set_model(model.to_string()).await {
-                                                Ok(_) => {
-                                                    let _ = socket.send(Message::Text(serde_json::json!({
-                                                        "status": "success",
-                                                        "message": format!("Successfully loaded {}", model)
-                                                    }).to_string().into())).await;
-                                                }
-                                                Err(e) => {
-                                                    let _ = socket.send(Message::Text(serde_json::json!({
-                                                        "error": format!("Failed to load model into VRAM: {}", e)
-                                                    }).to_string().into())).await;
+                    Message::Text(text) => {
+                        if let Ok(json) = serde_json::from_str::<Value>(&text) {
+                            if let Some(action) = json.get("action").and_then(|a| a.as_str()) {
+                                if action == "set_model" {
+                                    if let Some(model) = json.get("model").and_then(|m| m.as_str()) {
+                                        match download_model(model, &state.config.model_dir, &mut socket).await {
+                                            Ok(_) => {
+                                                match state.queue.set_model(model.to_string()).await {
+                                                    Ok(_) => {
+                                                        let _ = socket.send(Message::Text(serde_json::json!({
+                                                            "status": "success",
+                                                            "message": format!("Successfully loaded {}", model)
+                                                        }).to_string().into())).await;
+                                                    }
+                                                    Err(e) => {
+                                                        let _ = socket.send(Message::Text(serde_json::json!({
+                                                            "error": format!("Failed to load model into VRAM: {}", e)
+                                                        }).to_string().into())).await;
+                                                    }
                                                 }
                                             }
-                                        }
-                                        Err(e) => {
-                                            let _ = socket.send(Message::Text(serde_json::json!({
-                                                "error": format!("Download failed: {}", e)
-                                            }).to_string().into())).await;
+                                            Err(e) => {
+                                                let _ = socket.send(Message::Text(serde_json::json!({
+                                                    "error": format!("Download failed: {}", e)
+                                                }).to_string().into())).await;
+                                            }
                                         }
                                     }
+                                } else if action == "end_stream" {
+                                    process_audio(&mut audio_buffer, &mut socket, &state).await;
                                 }
-                            } else if action == "end_stream" {
-                                break;
                             }
                         }
                     }
+                    Message::Close(_) => {
+                        return;
+                    }
+                    _ => {}
                 }
-                Message::Close(_) => {
-                    return; 
-                }
-                _ => {}
             }
-        } else {
-            return; 
-        }
-    }
-
-    if !audio_buffer.is_empty() {
-        let mut f32_audio = Vec::new();
-        for chunk in audio_buffer.chunks_exact(2) {
-            let sample = i16::from_le_bytes([chunk[0], chunk[1]]);
-            f32_audio.push(sample as f32 / 32768.0);
-        }
-
-        match state.queue.transcribe(f32_audio).await {
-            Ok((text, processing_time_ms)) => {
-                let response = serde_json::json!({
-                    "text": text,
-                    "is_final": true,
-                    "processing_time_ms": processing_time_ms
-                });
-                let _ = socket.send(Message::Text(response.to_string().into())).await;
+            Ok(Some(Err(_))) | Ok(None) => {
+                return;
             }
-            Err(e) => {
-                let response = serde_json::json!({
-                    "error": e
-                });
-                let _ = socket.send(Message::Text(response.to_string().into())).await;
+            Err(_) => {
+                println!("WebSocket connection timed out after 5 minutes of inactivity.");
+                return;
             }
         }
     }
+}
+
+async fn process_audio(audio_buffer: &mut Vec<u8>, socket: &mut WebSocket, state: &AppState) {
+    if audio_buffer.is_empty() {
+        return;
+    }
+
+    let mut f32_audio = Vec::new();
+    for chunk in audio_buffer.chunks_exact(2) {
+        let sample = i16::from_le_bytes([chunk[0], chunk[1]]);
+        f32_audio.push(sample as f32 / 32768.0);
+    }
+
+    match state.queue.transcribe(f32_audio).await {
+        Ok((text, processing_time_ms)) => {
+            let response = serde_json::json!({
+                "text": text,
+                "is_final": true,
+                "processing_time_ms": processing_time_ms
+            });
+            let _ = socket.send(Message::Text(response.to_string().into())).await;
+        }
+        Err(e) => {
+            let response = serde_json::json!({
+                "error": e
+            });
+            let _ = socket.send(Message::Text(response.to_string().into())).await;
+        }
+    }
+
+    audio_buffer.clear();
 }
