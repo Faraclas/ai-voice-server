@@ -125,6 +125,8 @@ fn main() -> Result<()> {
                     
                     let output = Command::new("ydotool")
                         .arg("type")
+                        .arg("-d").arg("0")
+                        .arg("-H").arg("0")
                         .arg(&text)
                         .output()
                         .await;
