@@ -37,34 +37,31 @@ Currently, the server is run manually via SSH and requires an active session (or
 
 ## Client Improvements
 
-The client currently relies on standard GNOME desktop notifications and desktop environment shortcuts, which causes clutter and workflow interruptions, especially when using VMs.
+The original client relied on bash scripts (`dictate.sh`), standard GNOME desktop notifications, and desktop environment shortcuts, which caused clutter, workflow interruptions, and VM capture issues. We have replaced this with a native, robust Rust daemon.
 
 ### 1. Low-Level Hotkey Interception (`interception-tools`)
 - **Problem:** GNOME keyboard shortcuts are captured by KVM virtual machines, requiring the user to manually click out of the VM to trigger dictation, and click back in to paste.
 - **Goal:** Bypass the desktop environment's shortcut manager entirely so the dictation hotkey works globally with zero latency.
-- **Tasks:**
-  - Utilize `sys-apps/interception-tools` (a fast, production-ready C daemon) to grab the keyboard at the kernel level (`/dev/input`).
-  - Configure an exec plugin (like `interception-tools-exec`) to watch for the dictation hotkey, swallowing it before it reaches KVM, and triggering the `dictate.sh` bash script.
+- **Status (Done):** Built a native, blazing-fast Rust plugin (`interceptor`) for `sys-apps/interception-tools` to grab the keyboard at the kernel level (`/dev/input`). It implements a true toggle logic (e.g. `Left_Ctrl + Space`), swallowing the hotkey before KVM sees it and triggering the daemon via UDP.
 
-### 2. Audio Feedback (Replacing GNOME Notifications)
-- **Problem:** Standard notifications clutter the tray, don't show up reliably across all workspaces, and trigger in awkward orders. Wayland makes cross-workspace global visual overlays extremely difficult to implement reliably.
-- **Goal:** Provide immediate, non-intrusive feedback without visual clutter.
-- **Tasks:**
-  - Replace `notify-send` with short, subtle audio cues (e.g., a 'click' or 'beep' using `paplay` or `aplay`) that trigger instantly when recording starts, and when it successfully pastes.
-  
+### 2. UI and Audio Feedback
+- **Problem:** Standard `notify-send` notifications clutter the tray, don't show up reliably across all workspaces, and trigger in awkward orders.
+- **Status (Partially Done):** Implemented a lightweight, native GTK OSD overlay directly in the Rust daemon using `gtk4-layer-shell` (with graceful fallback for vanilla GNOME Wayland).
+- **Goal (Pending):** Provide immediate, non-intrusive auditory feedback. Replace the need for visual confirmation with short, subtle audio cues (e.g., a 'click' or 'beep' using PipeWire/`paplay`) that trigger instantly when recording starts, stops, and successfully pastes.
+
 ### 3. Auto-Pasting (`ydotool`)
-- **Problem:** Manually pasting requires clicking back into the target window.
-- **Goal:** Automatically inject the returned text into the active window.
-- **Tasks:**
-  - Integrate `ydotool` into the `dictate.sh` script to simulate the `Ctrl+V` keystrokes after updating the Wayland clipboard via `wl-copy`.
+- **Problem:** `dictate.sh` originally relied on `wl-copy`, which required clicking back into the target window to paste.
+- **Goal:** Automatically inject the returned text into the active window identically across all OS contexts.
+- **Status (Done):** Natively integrated `ydotool` directly into the Rust daemon's Tokio async runtime to instantaneously type the transcribed text with zero delay, bypassing all clipboard inconsistencies.
 
 ---
 
 ## Proposed Next Steps
-1. **Server Stabilization:** (Done) The systemd unit with graceful NVIDIA hardware detection is written.
-2. **Client Hotkeys:** Configure `interception-tools` to handle the global kernel-level hotkey.
-3. **Client UI & Pasting:** Update `dictate.sh` to use audio cues and `ydotool`.
-4. **Future Work**
+1. **Server Stabilization:** (Done) The systemd unit, fail-safe timeouts, and graceful hardware checks are written.
+2. **Client Foundation:** (Done) The Rust GTK daemon, Tokio networking, and `ydotool` auto-pasting are complete.
+3. **Client Hotkeys:** (Done) The native `interceptor` plugin is integrated and functioning perfectly as a toggle.
+4. **Audio Cues:** (Pending) Add `paplay` sound effects to the daemon.
+5. **Future Work:**
 - Add the LLM formatting engine mentioned in the original README.
 - **Performance Benchmarking (CUDA vs Vulkan):** While the Vulkan backend compiles smoothly and performs well natively, we need to revisit and benchmark a proper CUDA compile (`--features nvidia`) once the CUDA toolkit is installed. The goal is to rigorously compare latency and throughput to see if Vulkan truly matches CUDA on the RTX 3060 Ti for `whisper.cpp` workloads.
 
