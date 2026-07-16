@@ -39,7 +39,7 @@ fn main() -> Result<()> {
     let (hotkey_tx, hotkey_rx) = mpsc::channel::<HotkeyEvent>(32);
     let (audio_ctl_tx, audio_ctl_rx) = mpsc::channel::<bool>(2);
     let (audio_data_tx, audio_data_rx) = mpsc::channel::<Vec<u8>>(100);
-    let (text_tx, text_rx) = mpsc::channel::<String>(10);
+    let (text_tx, mut text_rx) = mpsc::channel::<String>(10);
     let (status_tx, status_rx) = mpsc::channel::<(String, Option<f64>)>(10);
 
     // 2. Start Tokio Runtime for Async Tasks (Networking and UDP)
@@ -56,6 +56,32 @@ fn main() -> Result<()> {
             tokio::spawn(async move {
                 if let Err(e) = net_client.start(audio_data_rx, text_tx, status_tx).await {
                     error!("Network client error: {:#}", e);
+                }
+            });
+            
+            // Spawn Text Injection Task (ydotool) inside Tokio runtime
+            tokio::spawn(async move {
+                info!("Listening for transcription results...");
+                while let Some(text) = text_rx.recv().await {
+                    info!("Injecting text: {}", text);
+                    let output = Command::new("ydotool")
+                        .arg("type")
+                        .arg("-d").arg("0")
+                        .arg("-H").arg("0")
+                        .arg(&text)
+                        .output()
+                        .await;
+                    match output {
+                        Ok(o) if o.status.success() => {
+                            info!("Successfully injected text.");
+                        }
+                        Ok(o) => {
+                            error!("ydotool failed: {:?}", String::from_utf8_lossy(&o.stderr));
+                        }
+                        Err(e) => {
+                            error!("Failed to execute ydotool (is the daemon running?): {}", e);
+                        }
+                    }
                 }
             });
 
@@ -83,7 +109,6 @@ fn main() -> Result<()> {
     
     // Wrap receivers in Rc<RefCell<Option<T>>> so they can be moved into the Fn closure once
     let hotkey_rx_opt = Rc::new(RefCell::new(Some(hotkey_rx)));
-    let text_rx_opt = Rc::new(RefCell::new(Some(text_rx)));
     let status_rx_opt = Rc::new(RefCell::new(Some(status_rx)));
 
     app.connect_activate(move |app| {
@@ -116,36 +141,7 @@ fn main() -> Result<()> {
             });
         }
 
-        if let Some(mut rx) = text_rx_opt.borrow_mut().take() {
-            main_context.spawn_local(async move {
-                info!("Listening for transcription results...");
-                
-                while let Some(text) = rx.recv().await {
-                    info!("Injecting text: {}", text);
-                    
-                    let output = Command::new("ydotool")
-                        .arg("type")
-                        .arg("-d").arg("0")
-                        .arg("-H").arg("0")
-                        .arg(&text)
-                        .output()
-                        .await;
-                    
-                    match output {
-                        Ok(o) if o.status.success() => {
-                            info!("Successfully injected text.");
-                        }
-                        Ok(o) => {
-                            error!("ydotool failed: {:?}", String::from_utf8_lossy(&o.stderr));
-                        }
-                        Err(e) => {
-                            error!("Failed to execute ydotool (is the daemon running?): {}", e);
-                        }
-                    }
-                }
-            });
-        }
-        
+        // Removed text_rx from GTK thread, moved to Tokio runtime
         if let Some(mut rx) = status_rx_opt.borrow_mut().take() {
             main_context.spawn_local(async move {
                 info!("Listening for server status updates...");
