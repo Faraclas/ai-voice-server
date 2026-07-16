@@ -25,6 +25,14 @@ Currently, the server is run manually via SSH and requires an active session (or
   - Add a pre-start check in the server script (or systemd `ExecStartPre`) to detect the NVIDIA GPU (e.g., using `nvidia-smi` or checking PCI devices).
   - If the GPU is not found, gracefully exit the service or fall back to a CPU-only mode (if desired).
 
+### 3. Remote Administration API (Model Hot-Swapping)
+- **Goal:** Allow remote clients to change the active model (e.g., switch to `large-v3`) dynamically without needing to SSH into the server to edit config files or restart the systemd service.
+- **Tasks:**
+  - Build authenticated endpoints into the Rust server (e.g. `POST /admin/model/swap`) protected by an `ADMIN_API_KEY` defined in the config.
+  - Implement auto-downloading logic in the Rust server so it can automatically fetch missing `.bin` models from HuggingFace.
+  - Implement seamless hot-swapping in the Rust server to drop the old model from GPU memory and load the new one on the fly.
+  - Add admin CLI commands to the client-side Rust application to securely communicate with this new endpoint.
+
 ---
 
 ## Client Improvements
