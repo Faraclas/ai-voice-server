@@ -15,9 +15,11 @@ pub struct AppState {
 
 #[tokio::main]
 async fn main() {
-    // Attempt to load a .env file for local testing. 
-    // If it's not found (like in production), this silently fails and moves on!
-    dotenvy::dotenv().ok();
+    // 1. Load local .env first so user configs take strict precedence
+    let _ = dotenvy::dotenv();
+
+    // 2. Fall back to the system config to fill in any missing defaults
+    let _ = dotenvy::from_path("/etc/conf.d/ai-voice-server");
 
     let config = Arc::new(AppConfig::load());
     let queue = JobQueue::new(config.clone());
