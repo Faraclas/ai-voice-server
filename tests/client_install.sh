@@ -39,22 +39,11 @@ cat << 'EOF' > /etc/interception/udevmon.yaml
 EOF
 
 echo "Starting ydotool user service for auto-pasting..."
-if command -v systemctl >/dev/null 2>&1; then
-    su -c "XDG_RUNTIME_DIR=/run/user/\$(id -u) systemctl --user enable --now ydotool" $SUDO_USER
-else
-    # On OpenRC, ydotoold is typically a system-wide service
-    rc-service ydotoold start
-    rc-update add ydotoold default
-fi
+su -c "XDG_RUNTIME_DIR=/run/user/\$(id -u) systemctl --user enable --now ydotool" $SUDO_USER
 
 echo "Restarting udevmon service..."
-if command -v systemctl >/dev/null 2>&1; then
-    systemctl restart udevmon
-    systemctl enable udevmon
-else
-    rc-service udevmon restart
-    rc-update add udevmon default
-fi
+systemctl restart udevmon
+systemctl enable udevmon
 
 echo "Done! The client is fully installed for testing."
 echo "You can run the client daemon by executing: ai-voice-client"

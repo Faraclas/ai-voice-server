@@ -74,4 +74,5 @@ The client currently relies on standard GNOME desktop notifications and desktop 
   - Create an ebuild with `client` and `server` USE flags.
     - **Note:** Ensure that the ebuild explicitly requires `x11-misc/ydotool` as a dependency if `USE=client` is set.
     - **Note:** Ensure that the ebuild explicitly requires `app-misc/interception-tools` as a dependency if `USE=client` is set.
+    - **Note:** Explicitly enforce that `systemd`, `wayland`, and `pipewire` are REQUIRED environment configurations. OpenRC, X11, and raw ALSA/PulseAudio are unsupported.
   - Move the repository to the final overlay location once the structure is finalized.
