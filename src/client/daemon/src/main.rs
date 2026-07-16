@@ -23,7 +23,8 @@ enum HotkeyEvent {
 }
 
 fn main() -> Result<()> {
-    // Load environment variables from .env file if present
+    // Load environment variables from system config or local .env file
+    let _ = dotenvy::from_path("/etc/ai-voice-server/client.env");
     let _ = dotenvy::dotenv();
     env_logger::init();
     
