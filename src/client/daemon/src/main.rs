@@ -63,7 +63,8 @@ fn main() -> Result<()> {
             tokio::spawn(async move {
                 info!("Listening for transcription results...");
                 while let Some(text) = text_rx.recv().await {
-                    info!("Injecting text: {}", text);
+                    info!("Injecting transcription ({} bytes)...", text.len());
+                    log::debug!("Exact text: {}", text);
                     let output = Command::new("ydotool")
                         .arg("type")
                         .arg("-d").arg("0")
