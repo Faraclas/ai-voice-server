@@ -30,6 +30,7 @@ async fn main() {
         .route("/health", get(routes::health::health_handler))
         .route("/stream", get(routes::stream::stream_handler))
         .route("/set_model", post(routes::model::set_model_handler))
+        .route("/admin", get(routes::admin::admin_ui_handler))
         .with_state(state);
 
     let addr = format!("{}:{}", config.bind_addr, config.port);

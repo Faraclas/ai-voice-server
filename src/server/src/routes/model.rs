@@ -15,7 +15,7 @@ pub struct SetModelResponse {
 }
 
 async fn download_model_http(model: &str, model_dir: &str) -> Result<(), String> {
-    let file_path = std::path::Path::new(model_dir).join(format!("{}.gguf", model));
+    let file_path = std::path::Path::new(model_dir).join(format!("{}.bin", model));
     if file_path.exists() {
         return Ok(());
     }

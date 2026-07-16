@@ -1,0 +1,27 @@
+[Unit]
+Description=AI Voice Server (Whisper Dictation Pipeline)
+After=network.target
+
+[Service]
+Type=simple
+User=aivoice
+Group=aivoice
+EnvironmentFile=-/etc/conf.d/ai-voice-server
+ExecStart=/usr/bin/ai-voice-server
+Restart=on-failure
+RestartSec=5
+
+# Sandbox / Security Hardening (Gentoo best practice)
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+# Allow access to GPU devices
+DeviceAllow=/dev/nvidia0 rw
+DeviceAllow=/dev/nvidiactl rw
+DeviceAllow=/dev/nvidia-uvm rw
+DeviceAllow=/dev/nvidia-uvm-tools rw
+DeviceAllow=/dev/dri/renderD128 rw
+
+[Install]
+WantedBy=multi-user.target

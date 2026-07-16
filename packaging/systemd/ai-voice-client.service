@@ -1,0 +1,15 @@
+[Unit]
+Description=AI Voice Client (Wayland Dictation Overlay)
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+# The client talks to the GTK/Wayland layer, so it must run as the logged-in user
+ExecStart=/usr/bin/ai-voice-client
+Restart=on-failure
+RestartSec=3
+Environment="WAYLAND_DISPLAY=wayland-0"
+
+[Install]
+WantedBy=graphical-session.target

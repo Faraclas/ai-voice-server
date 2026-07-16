@@ -1,0 +1,5 @@
+- JOB:
+    # Match any input device that has the dictation hotkey capability
+    # (Typically this binds to all keyboards)
+    INTERCEPT: -E /dev/input/by-path/*-kbd
+    EXEC: /usr/bin/interception_plugin

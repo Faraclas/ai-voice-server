@@ -29,7 +29,8 @@ cd ~/code/ai-voice-server/python-prototype
 
 ## Setup
 - **Server (v2):** Configure via `.env` for local testing, or `/etc/conf.d/ai-voice-server` for production systemd deployments.
-- **Client:** See `python-prototype/client/README.md` for detailed instructions on setting up the dictation hotkey and kernel-level auto-typing.
+- **Client (v2):** See `src/client/README.md` for the Rust client dependencies (`interception-tools`, `ydotool`, `gtk4-layer-shell`).
+- **Client (v1 PoC):** See `python-prototype/client/README.md` for detailed instructions on setting up the dictation hotkey and kernel-level auto-typing.
 
 ---
 

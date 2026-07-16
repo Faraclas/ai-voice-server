@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Voice Server - Admin Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --border-color: rgba(255, 255, 255, 0.1);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --error: #ef4444;
+            --success: #10b981;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            background-image: radial-gradient(circle at top right, #1e3a8a 0%, transparent 40%),
+                              radial-gradient(circle at bottom left, #312e81 0%, transparent 40%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 500px;
+            padding: 2rem;
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            transition: transform 0.3s ease;
+        }
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            text-align: center;
+            background: linear-gradient(to right, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .section {
+            margin-bottom: 1.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.75rem;
+            font-size: 0.9rem;
+        }
+        .stat-label { color: var(--text-muted); }
+        .stat-value { font-weight: 500; }
+        .form-group {
+            margin-bottom: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+        input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-main);
+            font-family: inherit;
+            font-size: 0.95rem;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+        input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+        button {
+            width: 100%;
+            padding: 0.75rem;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.1s ease;
+        }
+        button:hover { background: var(--accent-hover); }
+        button:active { transform: scale(0.98); }
+        button:disabled { opacity: 0.7; cursor: not-allowed; }
+        #status-msg {
+            margin-top: 1rem;
+            font-size: 0.85rem;
+            text-align: center;
+            min-height: 1.2rem;
+        }
+        .error { color: var(--error); }
+        .success { color: var(--success); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AI Voice Server</h1>
+        
+        <div class="section" id="status-section">
+            <div class="stat-row">
+                <span class="stat-label">Hardware Acceleration</span>
+                <span class="stat-value" id="val-backend">Loading...</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Loaded Model</span>
+                <span class="stat-value" id="val-model">Loading...</span>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="form-group">
+                <label for="api-key">Admin API Key</label>
+                <input type="password" id="api-key" placeholder="Enter your secret key" />
+            </div>
+            <div class="form-group">
+                <label for="model-name">Change Whisper Model</label>
+                <input type="text" id="model-name" placeholder="e.g. small.en, base, large-v3" />
+            </div>
+            <button id="btn-submit" onclick="swapModel()">Load Model into VRAM</button>
+            <div id="status-msg"></div>
+        </div>
+    </div>
+
+    <script>
+        // Load API key from local storage on load
+        document.addEventListener("DOMContentLoaded", () => {
+            const savedKey = localStorage.getItem('ai_voice_admin_key');
+            if (savedKey) document.getElementById('api-key').value = savedKey;
+            fetchStatus();
+        });
+
+        // Save API key on input
+        document.getElementById('api-key').addEventListener('input', (e) => {
+            localStorage.setItem('ai_voice_admin_key', e.target.value);
+        });
+
+        async function fetchStatus() {
+            try {
+                const res = await fetch('/health');
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById('val-backend').innerText = data.gpu_active ? "Active" : "Disabled (CPU)";
+                    document.getElementById('val-model').innerText = data.loaded_model || "None";
+                }
+            } catch (err) {
+                console.error("Failed to fetch health status");
+            }
+        }
+
+        async function swapModel() {
+            const key = document.getElementById('api-key').value;
+            const model = document.getElementById('model-name').value;
+            const msgEl = document.getElementById('status-msg');
+            const btn = document.getElementById('btn-submit');
+
+            if (!key || !model) {
+                msgEl.className = "error";
+                msgEl.innerText = "Please provide both API key and model name.";
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerText = "Hot-Swapping...";
+            msgEl.className = "";
+            msgEl.innerText = "Downloading/Loading model... this may take a moment.";
+
+            try {
+                const res = await fetch('/set_model', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${key}`
+                    },
+                    body: JSON.stringify({ model })
+                });
+
+                const data = await res.json();
+
+                if (res.ok && !data.status.startsWith("error")) {
+                    msgEl.className = "success";
+                    msgEl.innerText = "Model successfully loaded!";
+                    fetchStatus(); // Refresh status
+                } else {
+                    msgEl.className = "error";
+                    msgEl.innerText = data.status || "An error occurred";
+                }
+            } catch (err) {
+                msgEl.className = "error";
+                msgEl.innerText = "Network error. Is the server running?";
+            }
+
+            btn.disabled = false;
+            btn.innerText = "Load Model into VRAM";
+        }
+    </script>
+</body>
+</html>
