@@ -4,22 +4,25 @@ use std::net::UdpSocket;
 const EV_KEY: u16 = 1;
 
 fn main() {
-    // Read the target keycode from arguments, defaulting to 97 (Right Ctrl)
     let args: Vec<String> = std::env::args().collect();
-    let target_key: u16 = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(97); 
+    // Default to Left Ctrl (29) and Space (57)
+    let modifier_key: u16 = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(29);
+    let target_key: u16 = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(57);
 
     let socket = UdpSocket::bind("127.0.0.1:0").expect("Failed to bind UDP socket");
     let target_addr = "127.0.0.1:9999";
 
-    // A C input_event struct on 64-bit Linux is 24 bytes
     let mut buf = [0u8; 24];
     let mut stdin = io::stdin().lock();
     let mut stdout = io::stdout().lock();
 
+    let mut mod_down = false;
+    let mut active = false;
+
     loop {
         match stdin.read_exact(&mut buf) {
             Ok(_) => {
-                let (_, rest) = buf.split_at(16); // skip timeval (16 bytes)
+                let (_, rest) = buf.split_at(16);
                 let (type_bytes, rest) = rest.split_at(2);
                 let (code_bytes, rest) = rest.split_at(2);
                 let (value_bytes, _) = rest.split_at(4);
@@ -30,16 +33,28 @@ fn main() {
 
                 let mut swallow = false;
 
-                if type_ == EV_KEY && code == target_key {
-                    if value == 1 {
-                        let _ = socket.send_to(b"PRESS", target_addr);
-                        swallow = true;
-                    } else if value == 0 {
-                        let _ = socket.send_to(b"RELEASE", target_addr);
-                        swallow = true;
-                    } else if value == 2 {
-                        // Key repeat, swallow it but don't send anything
-                        swallow = true;
+                if type_ == EV_KEY {
+                    if code == modifier_key {
+                        mod_down = value == 1 || value == 2;
+                        // Never swallow the modifier, otherwise standard shortcuts break
+                    } else if code == target_key {
+                        if value == 1 {
+                            if mod_down {
+                                let _ = socket.send_to(b"PRESS", target_addr);
+                                active = true;
+                                swallow = true;
+                            }
+                        } else if value == 0 {
+                            if active {
+                                let _ = socket.send_to(b"RELEASE", target_addr);
+                                active = false;
+                                swallow = true;
+                            }
+                        } else if value == 2 {
+                            if active {
+                                swallow = true;
+                            }
+                        }
                     }
                 }
 
@@ -50,7 +65,7 @@ fn main() {
                     let _ = stdout.flush();
                 }
             }
-            Err(_) => break, // EOF or error
+            Err(_) => break,
         }
     }
 }
