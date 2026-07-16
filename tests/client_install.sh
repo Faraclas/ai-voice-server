@@ -14,8 +14,8 @@ su -c "cd src/client/daemon && cargo build --release" $SUDO_USER
 su -c "cd src/client/daemon && cargo build --release --bin interceptor" $SUDO_USER
 
 echo "Installing binaries to /usr/local/bin..."
-cp src/client/daemon/target/release/daemon /usr/local/bin/ai-voice-client
-cp src/client/daemon/target/release/interceptor /usr/local/bin/ai-voice-interceptor
+cp src/client/target/release/daemon /usr/local/bin/ai-voice-client
+cp src/client/target/release/interceptor /usr/local/bin/ai-voice-interceptor
 chmod +x /usr/local/bin/ai-voice-client
 chmod +x /usr/local/bin/ai-voice-interceptor
 
@@ -39,7 +39,7 @@ cat << 'EOF' > /etc/interception/udevmon.yaml
 EOF
 
 echo "Starting ydotool user service for auto-pasting..."
-su -c "systemctl --user enable --now ydotool" $SUDO_USER
+su -c "XDG_RUNTIME_DIR=/run/user/\$(id -u) systemctl --user enable --now ydotool" $SUDO_USER
 
 echo "Restarting udevmon service..."
 if command -v systemctl >/dev/null 2>&1; then
