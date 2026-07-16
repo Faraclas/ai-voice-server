@@ -41,73 +41,108 @@ impl NetworkClient {
         status_tx: mpsc::Sender<(String, Option<f64>)>,
     ) -> Result<()> {
         let url = Url::parse(&self.ws_url).context("Invalid WebSocket URL")?;
-        info!("Connecting to WebSocket at {}...", url);
-
-        let (ws_stream, _) = connect_async(url.as_str()).await.context("Failed to connect to WebSocket")?;
-        info!("WebSocket connected successfully");
-
-        let (mut write, mut read) = ws_stream.split();
-
-        // Task to read responses from the server
-        let read_task = tokio::spawn(async move {
-            while let Some(msg) = read.next().await {
-                match msg {
-                    Ok(Message::Text(t)) => {
-                        if let Ok(response) = serde_json::from_str::<ServerMessage>(&t) {
-                            if response.is_final == Some(true) {
-                                if let Some(time_ms) = response.processing_time_ms {
-                                    info!("Transcription processed in {} ms", time_ms);
+        
+        loop {
+            // Wait for the first audio chunk to initiate connection
+            let first_chunk = match audio_rx.recv().await {
+                Some(chunk) => chunk,
+                None => break, // Channel closed
+            };
+            
+            if first_chunk.is_empty() {
+                continue; // Ignore empty chunks while disconnected
+            }
+            
+            info!("Connecting to WebSocket at {}...", url);
+            let ws_stream = match connect_async(url.as_str()).await {
+                Ok((stream, _)) => stream,
+                Err(e) => {
+                    error!("Failed to connect to WebSocket: {}", e);
+                    continue;
+                }
+            };
+            info!("WebSocket connected successfully");
+            
+            let (mut ws_write, mut ws_read) = ws_stream.split();
+            
+            // Send the first chunk
+            if let Err(e) = ws_write.send(Message::Binary(first_chunk.into())).await {
+                error!("Failed to send initial audio chunk: {}", e);
+                continue;
+            }
+            
+            loop {
+                tokio::select! {
+                    chunk_opt = audio_rx.recv() => {
+                        match chunk_opt {
+                            Some(chunk) => {
+                                if chunk.is_empty() {
+                                    debug!("End of audio burst received, sending end_stream signal.");
+                                    let end_msg = ClientMessage {
+                                        action: "end_stream".to_string(),
+                                        model: None,
+                                    };
+                                    let json = serde_json::to_string(&end_msg).unwrap();
+                                    if let Err(e) = ws_write.send(Message::Text(json.into())).await {
+                                        error!("Failed to send end_stream message: {}", e);
+                                        break;
+                                    }
+                                } else {
+                                    if let Err(e) = ws_write.send(Message::Binary(chunk.into())).await {
+                                        error!("Failed to send audio chunk over WebSocket: {}", e);
+                                        break;
+                                    }
                                 }
-                                if let Some(text) = response.text {
-                                    debug!("Received final transcription: {}", text);
-                                    let _ = text_tx.send(text).await;
-                                }
-                            } else if let Some(status) = response.status {
-                                let _ = status_tx.send((status, response.progress_pct)).await;
                             }
-                        } else {
-                            error!("Failed to parse server JSON: {}", t);
+                            None => return Ok(()), // Audio channel closed, exit completely
                         }
                     }
-                    Ok(Message::Close(_)) => {
-                        info!("Server closed WebSocket connection.");
+                    
+                    msg_opt = ws_read.next() => {
+                        match msg_opt {
+                            Some(Ok(Message::Text(t))) => {
+                                if let Ok(response) = serde_json::from_str::<ServerMessage>(&t) {
+                                    if response.is_final == Some(true) {
+                                        if let Some(time_ms) = response.processing_time_ms {
+                                            info!("Transcription processed in {} ms", time_ms);
+                                        }
+                                        if let Some(text) = response.text {
+                                            debug!("Received final transcription: {}", text);
+                                            let _ = text_tx.send(text).await;
+                                        }
+                                    } else if let Some(status) = response.status {
+                                        let _ = status_tx.send((status, response.progress_pct)).await;
+                                    }
+                                } else {
+                                    error!("Failed to parse server JSON: {}", t);
+                                }
+                            }
+                            Some(Ok(Message::Close(_))) => {
+                                info!("Server closed WebSocket connection.");
+                                break;
+                            }
+                            Some(Err(e)) => {
+                                error!("WebSocket read error: {}", e);
+                                break;
+                            }
+                            None => {
+                                info!("WebSocket stream ended.");
+                                break;
+                            }
+                            _ => {}
+                        }
+                    }
+                    
+                    _ = tokio::time::sleep(tokio::time::Duration::from_secs(60)) => {
+                        info!("WebSocket idle for 60 seconds. Closing connection.");
+                        let _ = ws_write.close().await;
                         break;
                     }
-                    Err(e) => {
-                        error!("WebSocket read error: {}", e);
-                        break;
-                    }
-                    _ => {}
-                }
-            }
-        });
-
-        // Loop to send audio chunks from the channel
-        while let Some(chunk) = audio_rx.recv().await {
-            // A zero-length chunk signals the end of the recording burst
-            if chunk.is_empty() {
-                debug!("End of audio burst received, sending end_stream signal.");
-                let end_msg = ClientMessage {
-                    action: "end_stream".to_string(),
-                    model: None,
-                };
-                let json = serde_json::to_string(&end_msg).unwrap();
-                if let Err(e) = write.send(Message::Text(json.into())).await {
-                    error!("Failed to send end_stream message: {}", e);
-                    break;
-                }
-            } else {
-                if let Err(e) = write.send(Message::Binary(chunk.into())).await {
-                    error!("Failed to send audio chunk over WebSocket: {}", e);
-                    break;
                 }
             }
         }
-
+        
         info!("Network client shutting down.");
-        let _ = write.close().await;
-        let _ = read_task.await;
-
         Ok(())
     }
 }
@@ -154,12 +189,14 @@ mod tests {
         let server_task = tokio::spawn(async move {
             if let Ok((stream, _)) = listener.accept().await {
                 if let Ok(mut ws_stream) = accept_async(stream).await {
-                    // Simulate receiving an audio chunk and immediately responding
+                    // Simulate receiving an audio chunk and end_stream, then immediately responding
                     if let Some(_) = ws_stream.next().await {
-                        let response = r#"{"text": "Mock response", "is_final": true}"#;
-                        let _ = ws_stream.send(Message::Text(response.into())).await;
-                        // Intentionally close the connection
-                        let _ = ws_stream.close(None).await;
+                        if let Some(_) = ws_stream.next().await {
+                            let response = r#"{"text": "Mock response", "is_final": true}"#;
+                            let _ = ws_stream.send(Message::Text(response.into())).await;
+                            // Intentionally close the connection
+                            let _ = ws_stream.close(None).await;
+                        }
                     }
                 }
             }
@@ -178,7 +215,6 @@ mod tests {
         // 3. Send a dummy binary chunk to trigger the server interaction, followed by an empty chunk to trigger end_stream
         let _ = audio_tx.send(vec![0x00, 0x01]).await;
         let _ = audio_tx.send(vec![]).await;
-        drop(audio_tx);
 
         // 4. Verify we got the expected text response despite the imminent closure
         if let Some(text) = text_rx.recv().await {
@@ -186,6 +222,8 @@ mod tests {
         } else {
             panic!("Did not receive expected response from mock server");
         }
+        
+        drop(audio_tx);
 
         // Wait for tasks to exit cleanly without crashing
         let _ = server_task.await;
