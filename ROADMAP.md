@@ -72,4 +72,5 @@ The client currently relies on standard GNOME desktop notifications and desktop 
 - **Goal:** Package the entire project into the user's personal Gentoo overlay for native package management.
 - **Tasks:**
   - Create an ebuild with `client` and `server` USE flags.
+    - **Note:** Ensure that the ebuild explicitly requires `x11-misc/ydotool` as a dependency if `USE=client` is set.
   - Move the repository to the final overlay location once the structure is finalized.
