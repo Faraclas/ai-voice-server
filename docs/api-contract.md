@@ -74,9 +74,12 @@ accept transcription requests before attempting to record.
 
 Allows external scripts or tools to dynamically swap the active Whisper model without opening a WebSocket connection.
 
-### Request Body
+### Request Headers
 
+- **Authorization:** `Bearer <ADMIN_API_KEY>`
 - **Content-Type:** `application/json`
+
+### Request Body
 
 ```json
 {
