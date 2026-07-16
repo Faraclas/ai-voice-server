@@ -6,6 +6,8 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
+cd "$(dirname "$0")/.."
+
 echo "Building interceptor..."
 # Run cargo as the real user so we don't mess up target/ permissions with root
 su -c "cd src/client/daemon && cargo build --release --bin interceptor" $SUDO_USER
