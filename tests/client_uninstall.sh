@@ -7,8 +7,8 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 echo "Removing client binaries..."
-rm -f /usr/local/bin/ai-voice-client
-rm -f /usr/local/bin/ai-voice-interceptor
+rm -f /usr/bin/ai-voice-client
+rm -f /usr/bin/ai-voice-interceptor
 
 echo "Removing client configuration..."
 rm -rf /etc/ai-voice-server

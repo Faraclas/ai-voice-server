@@ -13,11 +13,11 @@ echo "Compiling AI Voice Client binaries..."
 su -c "cd src/client/daemon && cargo build --release" $SUDO_USER
 su -c "cd src/client/daemon && cargo build --release --bin interceptor" $SUDO_USER
 
-echo "Installing binaries to /usr/local/bin..."
-cp src/client/target/release/daemon /usr/local/bin/ai-voice-client
-cp src/client/target/release/interceptor /usr/local/bin/ai-voice-interceptor
-chmod +x /usr/local/bin/ai-voice-client
-chmod +x /usr/local/bin/ai-voice-interceptor
+echo "Installing binaries to /usr/bin..."
+cp src/client/target/release/daemon /usr/bin/ai-voice-client
+cp src/client/target/release/interceptor /usr/bin/ai-voice-interceptor
+chmod +x /usr/bin/ai-voice-client
+chmod +x /usr/bin/ai-voice-interceptor
 
 echo "Creating client configuration file..."
 mkdir -p /etc/ai-voice-server
@@ -32,7 +32,7 @@ mkdir -p /etc/interception
 
 # 29 = Left Ctrl, 57 = Space
 cat << 'EOF' > /etc/interception/udevmon.yaml
-- JOB: "intercept -g $DEVNODE | /usr/local/bin/ai-voice-interceptor 29 57 | uinput -d $DEVNODE"
+- JOB: "intercept -g $DEVNODE | /usr/bin/ai-voice-interceptor 29 57 | uinput -d $DEVNODE"
   DEVICE:
     EVENTS:
       EV_KEY: [KEY_SPACE, KEY_LEFTCTRL]
