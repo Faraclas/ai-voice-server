@@ -55,6 +55,9 @@ impl NetworkClient {
                     Ok(Message::Text(t)) => {
                         if let Ok(response) = serde_json::from_str::<ServerMessage>(&t) {
                             if response.is_final == Some(true) {
+                                if let Some(time_ms) = response.processing_time_ms {
+                                    info!("Transcription processed in {} ms", time_ms);
+                                }
                                 if let Some(text) = response.text {
                                     debug!("Received final transcription: {}", text);
                                     let _ = text_tx.send(text).await;

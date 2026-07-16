@@ -18,6 +18,11 @@ else
     source "$CONFIG_FILE"
 fi
 
+# If PROTOTYPE_PORT is set in the config, override SERVER_PORT
+if [ -n "$PROTOTYPE_PORT" ]; then
+    SERVER_PORT="$PROTOTYPE_PORT"
+fi
+
 SERVER_URL="http://${SERVER_HOST}:${SERVER_PORT}"
 AUDIO_FILE="/tmp/dictation.wav"
 PID_FILE="/tmp/dictation.pid"

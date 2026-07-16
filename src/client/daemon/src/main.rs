@@ -42,18 +42,20 @@ fn main() -> Result<()> {
     let (text_tx, text_rx) = mpsc::channel::<String>(10);
     let (status_tx, status_rx) = mpsc::channel::<(String, Option<f64>)>(10);
 
-    // 1. Start Audio Capture Subsystem
-    audio::start_audio_capture(audio_ctl_rx, audio_data_tx)?;
-
     // 2. Start Tokio Runtime for Async Tasks (Networking and UDP)
     std::thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
+            // 1. Start Audio Capture Subsystem
+            if let Err(e) = audio::start_audio_capture(audio_ctl_rx, audio_data_tx) {
+                error!("Failed to start audio capture: {}", e);
+            }
+
             // Spawn WebSocket Client Task
             let net_client = network::NetworkClient::new(&ws_url);
             tokio::spawn(async move {
                 if let Err(e) = net_client.start(audio_data_rx, text_tx, status_tx).await {
-                    error!("Network client error: {}", e);
+                    error!("Network client error: {:#}", e);
                 }
             });
 
