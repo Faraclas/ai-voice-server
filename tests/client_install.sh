@@ -39,7 +39,13 @@ cat << 'EOF' > /etc/interception/udevmon.yaml
 EOF
 
 echo "Starting ydotool user service for auto-pasting..."
-su -c "XDG_RUNTIME_DIR=/run/user/\$(id -u) systemctl --user enable --now ydotool" $SUDO_USER
+if command -v systemctl >/dev/null 2>&1; then
+    su -c "XDG_RUNTIME_DIR=/run/user/\$(id -u) systemctl --user enable --now ydotool" $SUDO_USER
+else
+    # On OpenRC, ydotoold is typically a system-wide service
+    rc-service ydotoold start
+    rc-update add ydotoold default
+fi
 
 echo "Restarting udevmon service..."
 if command -v systemctl >/dev/null 2>&1; then

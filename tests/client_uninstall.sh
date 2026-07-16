@@ -17,8 +17,13 @@ echo "Removing udevmon configuration..."
 rm -f /etc/interception/udevmon.yaml
 
 echo "Stopping ydotool user service..."
-su -c "XDG_RUNTIME_DIR=/run/user/\$(id -u) systemctl --user stop ydotool" $SUDO_USER
-su -c "XDG_RUNTIME_DIR=/run/user/\$(id -u) systemctl --user disable ydotool" $SUDO_USER
+if command -v systemctl >/dev/null 2>&1; then
+    su -c "XDG_RUNTIME_DIR=/run/user/\$(id -u) systemctl --user stop ydotool" $SUDO_USER
+    su -c "XDG_RUNTIME_DIR=/run/user/\$(id -u) systemctl --user disable ydotool" $SUDO_USER
+else
+    rc-service ydotoold stop
+    rc-update del ydotoold default
+fi
 
 echo "Restarting udevmon service..."
 if command -v systemctl >/dev/null 2>&1; then
