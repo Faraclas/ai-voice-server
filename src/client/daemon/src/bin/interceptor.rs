@@ -17,7 +17,8 @@ fn main() {
     let mut stdout = io::stdout().lock();
 
     let mut mod_down = false;
-    let mut active = false;
+    let mut recording = false;
+    let mut space_was_swallowed = false;
 
     loop {
         match stdin.read_exact(&mut buf) {
@@ -36,22 +37,30 @@ fn main() {
                 if type_ == EV_KEY {
                     if code == modifier_key {
                         mod_down = value == 1 || value == 2;
-                        // Never swallow the modifier, otherwise standard shortcuts break
+                        // Never swallow the modifier
                     } else if code == target_key {
-                        if value == 1 {
+                        if value == 1 { // Key down
                             if mod_down {
-                                let _ = socket.send_to(b"PRESS", target_addr);
-                                active = true;
+                                if !recording {
+                                    // Toggle ON
+                                    let _ = socket.send_to(b"PRESS", target_addr);
+                                    recording = true;
+                                } else {
+                                    // Toggle OFF
+                                    let _ = socket.send_to(b"RELEASE", target_addr);
+                                    recording = false;
+                                }
                                 swallow = true;
+                                space_was_swallowed = true;
                             }
-                        } else if value == 0 {
-                            if active {
-                                let _ = socket.send_to(b"RELEASE", target_addr);
-                                active = false;
+                        } else if value == 0 { // Key up
+                            if space_was_swallowed {
+                                // Swallow the release event so the OS doesn't see a stuck key
                                 swallow = true;
+                                space_was_swallowed = false;
                             }
-                        } else if value == 2 {
-                            if active {
+                        } else if value == 2 { // Key repeat
+                            if mod_down {
                                 swallow = true;
                             }
                         }
