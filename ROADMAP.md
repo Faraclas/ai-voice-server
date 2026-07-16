@@ -58,6 +58,7 @@ The client currently relies on standard GNOME desktop notifications and desktop 
 3. **Client UI & Pasting:** Update `dictate.sh` to use audio cues and `ydotool`.
 4. **Future Work**
 - Add the LLM formatting engine mentioned in the original README.
+- **Performance Benchmarking (CUDA vs Vulkan):** While the Vulkan backend compiles smoothly and performs well natively, we need to revisit and benchmark a proper CUDA compile (`--features nvidia`) once the CUDA toolkit is installed. The goal is to rigorously compare latency and throughput to see if Vulkan truly matches CUDA on the RTX 3060 Ti for `whisper.cpp` workloads.
 
 ## Packaging (Gentoo Ebuilds)
 - **Goal:** Package the entire project into the user's personal Gentoo overlay for native package management.
