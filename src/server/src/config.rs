@@ -15,6 +15,7 @@ pub struct AppConfig {
     pub device_priority: Vec<String>,
     pub use_gpu: bool,
     pub active_device: String,
+    pub admin_api_key: Option<String>,
 }
 
 impl AppConfig {
@@ -88,6 +89,8 @@ impl AppConfig {
             panic!("GPU is required by config but no valid GPU was detected.");
         }
 
+        let admin_api_key = std::env::var("ADMIN_API_KEY").ok().filter(|s| !s.is_empty());
+
         Self {
             port,
             bind_addr,
@@ -98,6 +101,7 @@ impl AppConfig {
             device_priority,
             use_gpu,
             active_device,
+            admin_api_key,
         }
     }
 }
