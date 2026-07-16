@@ -23,9 +23,9 @@ enum HotkeyEvent {
 }
 
 fn main() -> Result<()> {
-    // Load environment variables from system config or local .env file
-    let _ = dotenvy::from_path("/etc/ai-voice-server/client.env");
+    // Load local .env first so it takes precedence, then fallback to system config
     let _ = dotenvy::dotenv();
+    let _ = dotenvy::from_path("/etc/ai-voice-server/client.env");
     env_logger::init();
     
     info!("Starting AI Voice Server Client Daemon...");
