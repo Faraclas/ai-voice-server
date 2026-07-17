@@ -75,6 +75,10 @@ fn main() -> Result<()> {
                     if !*rx.borrow() {
                         info!("Waiting for physical modifier key to be released...");
                         let _ = rx.changed().await;
+                        
+                        // Give the OS 50ms to process the physical release event through the input event queue 
+                        // before we start firing virtual keystrokes, avoiding a race condition.
+                        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                     }
 
                     info!("Injecting transcription ({} bytes)...", text.len());
