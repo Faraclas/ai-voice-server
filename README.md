@@ -25,11 +25,15 @@ cd ~/code/ai-voice-server/python-prototype
 ## Architecture
 - **Server (v2):** A native Rust application (`src/server/`) using `axum` and `whisper-rs`. It is highly concurrent, gracefully degrades to CPU if the GPU is missing, and protects VRAM via a single-worker job queue.
 - **Server (v1 PoC):** A FastAPI application (`python-prototype/server/server.py`) running `faster-whisper`.
-- **Client:** A toggle-based dictation client (press and release hotkey to start, press and release again to stop) designed to run as a background Wayland daemon. It records audio, handles the WebSocket connection, and auto-types or copies the result to the clipboard.
+- **Client:** A robust toggle-based dictation client (press and release hotkey to start, press and release again to stop) designed to run as a background Wayland daemon. It records audio, handles the WebSocket connection, and auto-types or copies the result to the clipboard.
+  - **Dynamic Output Modes:** Switch between auto-typing and clipboard-copy modes on the fly using a secondary hotkey (default: Right Ctrl + Space).
+  - **Auto-Typing Safety:** Automatically waits for physical modifier key releases before typing to prevent accidental shortcut triggers, supporting custom propagation delays for VMs.
+  - **Rich Configuration:** Automatically generates a user config file at `~/.config/ai-voice-server/client.env` for customizing typing speeds, hotkeys, and server addresses. Hotkeys are defined using intuitive string names (e.g., `KEY_RIGHTCTRL`) rather than raw keycodes.
+  - **Long-form Dictation:** Supports recording up to 10 minutes of audio in a single buffer, complete with visual "transcribing" UI states via layer-shell.
 
 ## Setup
 - **Server (v2):** Configure via `.env` for local testing, or `/etc/conf.d/ai-voice-server` for production systemd deployments.
-- **Client (v2):** See `src/client/README.md` for the Rust client dependencies (`interception-tools`, `ydotool`, `gtk4-layer-shell`).
+- **Client (v2):** See `src/client/README.md` for the Rust client dependencies (`interception-tools`, `ydotool`, `gtk4-layer-shell`). Client settings (like typing speed, output mode, and target server) can be customized via `~/.config/ai-voice-server/client.env`, which is automatically generated on first run.
 - **Client (v1 PoC):** See `python-prototype/client/README.md` for detailed instructions on setting up the dictation hotkey and kernel-level auto-typing.
 
 ---
