@@ -19,9 +19,13 @@ elif command -v vulkaninfo &> /dev/null && vulkaninfo &> /dev/null && [ -x /usr/
 
 # 4. Final Fallback (CPU)
 else
-    echo "No GPU APIs detected or matching binaries installed. Falling back to CPU..."
+    echo "No GPU APIs detected. Falling back to CPU mode..."
     if [ -x /usr/bin/ai-voice-server-cpu ]; then
         exec /usr/bin/ai-voice-server-cpu "$@"
+    elif [ -x /usr/bin/ai-voice-server-cuda ]; then
+        exec /usr/bin/ai-voice-server-cuda "$@"
+    elif [ -x /usr/bin/ai-voice-server-rocm ]; then
+        exec /usr/bin/ai-voice-server-rocm "$@"
     elif [ -x /usr/bin/ai-voice-server-vulkan ]; then
         exec /usr/bin/ai-voice-server-vulkan "$@"
     else
