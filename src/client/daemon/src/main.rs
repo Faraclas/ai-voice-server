@@ -126,11 +126,19 @@ fn main() -> Result<()> {
 
             // Spawn WebSocket Client Task
             let net_client = network::NetworkClient::new(&ws_url);
+            let status_tx_net = status_tx.clone();
             tokio::spawn(async move {
-                if let Err(e) = net_client.start(audio_data_rx, text_tx, status_tx).await {
+                if let Err(e) = net_client.start(audio_data_rx, text_tx, status_tx_net).await {
                     error!("Network client error: {:#}", e);
                 }
             });
+            
+            // Dynamic state for output mode, initialized from env
+            let current_output_mode = Arc::new(tokio::sync::RwLock::new(
+                env::var("AI_VOICE_OUTPUT_MODE").unwrap_or_else(|_| "type".to_string())
+            ));
+            
+            let mode_clone_for_ydotool = current_output_mode.clone();
             
             // Spawn Text Injection Task (ydotool) inside Tokio runtime
             tokio::spawn(async move {
@@ -147,7 +155,7 @@ fn main() -> Result<()> {
                         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                     }
 
-                    let output_mode = env::var("AI_VOICE_OUTPUT_MODE").unwrap_or_else(|_| "type".to_string());
+                    let output_mode = mode_clone_for_ydotool.read().await.clone();
 
                     if output_mode.to_lowercase() == "clipboard" {
                         info!("Copying transcription ({} bytes) to clipboard...", text.len());
@@ -211,6 +219,22 @@ fn main() -> Result<()> {
                             let _ = hotkey_tx.send(HotkeyEvent::Release).await;
                         } else if msg == b"MODIFIER_UP" {
                             let _ = mod_up_tx.send(true);
+                        } else if msg == b"TOGGLE_MODE" {
+                            let mut mode = current_output_mode.write().await;
+                            if *mode == "type" {
+                                *mode = "clipboard".to_string();
+                                let _ = status_tx.send(("toast_clipboard".to_string(), None)).await;
+                            } else {
+                                *mode = "type".to_string();
+                                let _ = status_tx.send(("toast_type".to_string(), None)).await;
+                            }
+                            
+                            // spawn a task to hide it after 1s
+                            let stx = status_tx.clone();
+                            tokio::spawn(async move {
+                                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                                let _ = stx.send(("toast_hide".to_string(), None)).await;
+                            });
                         }
                     }
                     Err(e) => error!("UDP receive error: {}", e),
@@ -276,6 +300,17 @@ fn main() -> Result<()> {
                         label_clone.set_text("🎙️ Recording...");
                     } else if status == "done" {
                         window_clone.set_visible(false);
+                    } else if status == "toast_clipboard" {
+                        label_clone.set_text("📋 Mode: Clipboard");
+                        window_clone.set_visible(true);
+                    } else if status == "toast_type" {
+                        label_clone.set_text("⌨️ Mode: Typing");
+                        window_clone.set_visible(true);
+                    } else if status == "toast_hide" {
+                        let current_text = label_clone.text();
+                        if current_text.starts_with("📋") || current_text.starts_with("⌨️") {
+                            window_clone.set_visible(false);
+                        }
                     }
                 }
             });
