@@ -109,6 +109,7 @@ impl NetworkClient {
                                         if let Some(text) = response.text {
                                             debug!("Received final transcription: {}", text);
                                             let _ = text_tx.send(text).await;
+                                            let _ = status_tx.send(("done".to_string(), None)).await;
                                         }
                                     } else if let Some(status) = response.status {
                                         let _ = status_tx.send((status, response.progress_pct)).await;

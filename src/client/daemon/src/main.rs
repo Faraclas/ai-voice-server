@@ -182,7 +182,8 @@ fn main() -> Result<()> {
                         }
                         HotkeyEvent::Release => {
                             info!("Hotkey Released - Stopping Recording");
-                            window.set_visible(false);
+                            label.set_text("⚙️ Transcribing...");
+                            // We intentionally DO NOT hide the window here! We wait for the 'done' status.
                             let _ = audio_tx.send(false).await;
                         }
                     }
@@ -207,6 +208,8 @@ fn main() -> Result<()> {
                     } else if status == "ready" {
                         window_clone.set_visible(false);
                         label_clone.set_text("🎙️ Recording...");
+                    } else if status == "done" {
+                        window_clone.set_visible(false);
                     }
                 }
             });

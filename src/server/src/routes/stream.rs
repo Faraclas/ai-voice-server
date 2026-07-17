@@ -81,8 +81,8 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                 match msg {
                     Message::Binary(data) => {
                         audio_buffer.extend(data);
-                        if audio_buffer.len() > 1_920_000 {
-                            println!("Audio buffer exceeded maximum size, forcing end of stream.");
+                        if audio_buffer.len() > 19_200_000 { // 10 minutes of audio
+                            println!("Audio buffer exceeded 10-minute maximum size, forcing end of stream.");
                             process_audio(&mut audio_buffer, &mut socket, &state).await;
                         }
                     }
