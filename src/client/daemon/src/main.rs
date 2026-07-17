@@ -71,8 +71,8 @@ fn main() -> Result<()> {
                     log::debug!("Exact text: {}", text);
                     let output = Command::new("ydotool")
                         .arg("type")
-                        .arg("-d").arg("0")
-                        .arg("-H").arg("0")
+                        .arg("-d").arg("12")
+                        .arg("-H").arg("12")
                         .arg(&text)
                         .output()
                         .await;
