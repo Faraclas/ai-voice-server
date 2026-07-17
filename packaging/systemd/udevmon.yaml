@@ -1,5 +1,4 @@
-- JOB:
-    # Match any input device that has the dictation hotkey capability
-    # (Typically this binds to all keyboards)
-    INTERCEPT: -E /dev/input/by-path/*-kbd
-    EXEC: /usr/bin/interception_plugin
+- JOB: "intercept -g $DEVNODE | /usr/bin/interception_plugin | uinput -d $DEVNODE"
+  DEVICE:
+    EVENTS:
+      EV_KEY: [KEY_SPACE, KEY_LEFTCTRL]
