@@ -160,16 +160,16 @@ fn main() -> Result<()> {
                     if output_mode.to_lowercase() == "clipboard" {
                         info!("Copying transcription ({} bytes) to clipboard...", text.len());
                         log::debug!("Exact text: {}", text);
-                        let output = Command::new("wl-copy")
+                        let status = Command::new("wl-copy")
                             .arg(&text)
-                            .output()
+                            .status()
                             .await;
-                        match output {
-                            Ok(o) if o.status.success() => {
+                        match status {
+                            Ok(s) if s.success() => {
                                 info!("Successfully copied text to clipboard.");
                             }
-                            Ok(o) => {
-                                error!("wl-copy failed: {:?}", String::from_utf8_lossy(&o.stderr));
+                            Ok(s) => {
+                                error!("wl-copy failed with status: {}", s);
                             }
                             Err(e) => {
                                 error!("Failed to execute wl-copy (is wl-clipboard installed?): {}", e);
