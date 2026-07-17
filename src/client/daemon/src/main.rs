@@ -23,8 +23,11 @@ enum HotkeyEvent {
 }
 
 fn main() -> Result<()> {
-    // Load local .env first so it takes precedence, then fallback to system config
+    // Load local .env first so it takes precedence, then user config, then system config
     let _ = dotenvy::dotenv();
+    if let Some(home) = dirs::config_dir() {
+        let _ = dotenvy::from_path(home.join("ai-voice-server/client.env"));
+    }
     let _ = dotenvy::from_path("/etc/ai-voice-server/client.env");
     env_logger::init();
     
