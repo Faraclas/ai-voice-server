@@ -81,29 +81,51 @@ fn main() -> Result<()> {
                         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                     }
 
-                    info!("Injecting transcription ({} bytes)...", text.len());
-                    log::debug!("Exact text: {}", text);
-                    
-                    // Allow the user to configure typing speeds via their client.env file, defaulting to 2ms
-                    let typing_delay = env::var("AI_VOICE_TYPING_DELAY").unwrap_or_else(|_| "2".to_string());
-                    let typing_hold = env::var("AI_VOICE_TYPING_HOLD").unwrap_or_else(|_| "2".to_string());
-                    
-                    let output = Command::new("ydotool")
-                        .arg("type")
-                        .arg("-d").arg(&typing_delay)
-                        .arg("-H").arg(&typing_hold)
-                        .arg(&text)
-                        .output()
-                        .await;
-                    match output {
-                        Ok(o) if o.status.success() => {
-                            info!("Successfully injected text.");
+                    let output_mode = env::var("AI_VOICE_OUTPUT_MODE").unwrap_or_else(|_| "type".to_string());
+
+                    if output_mode.to_lowercase() == "clipboard" {
+                        info!("Copying transcription ({} bytes) to clipboard...", text.len());
+                        log::debug!("Exact text: {}", text);
+                        let output = Command::new("wl-copy")
+                            .arg(&text)
+                            .output()
+                            .await;
+                        match output {
+                            Ok(o) if o.status.success() => {
+                                info!("Successfully copied text to clipboard.");
+                            }
+                            Ok(o) => {
+                                error!("wl-copy failed: {:?}", String::from_utf8_lossy(&o.stderr));
+                            }
+                            Err(e) => {
+                                error!("Failed to execute wl-copy (is wl-clipboard installed?): {}", e);
+                            }
                         }
-                        Ok(o) => {
-                            error!("ydotool failed: {:?}", String::from_utf8_lossy(&o.stderr));
-                        }
-                        Err(e) => {
-                            error!("Failed to execute ydotool (is the daemon running?): {}", e);
+                    } else {
+                        info!("Injecting transcription ({} bytes)...", text.len());
+                        log::debug!("Exact text: {}", text);
+                        
+                        // Allow the user to configure typing speeds via their client.env file, defaulting to 2ms
+                        let typing_delay = env::var("AI_VOICE_TYPING_DELAY").unwrap_or_else(|_| "2".to_string());
+                        let typing_hold = env::var("AI_VOICE_TYPING_HOLD").unwrap_or_else(|_| "2".to_string());
+                        
+                        let output = Command::new("ydotool")
+                            .arg("type")
+                            .arg("-d").arg(&typing_delay)
+                            .arg("-H").arg(&typing_hold)
+                            .arg(&text)
+                            .output()
+                            .await;
+                        match output {
+                            Ok(o) if o.status.success() => {
+                                info!("Successfully injected text.");
+                            }
+                            Ok(o) => {
+                                error!("ydotool failed: {:?}", String::from_utf8_lossy(&o.stderr));
+                            }
+                            Err(e) => {
+                                error!("Failed to execute ydotool (is the daemon running?): {}", e);
+                            }
                         }
                     }
                 }
