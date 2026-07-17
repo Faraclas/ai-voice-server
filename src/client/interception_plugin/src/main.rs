@@ -100,6 +100,22 @@ fn main() {
                             let _ = socket.send_to(msg, daemon_addr);
                             recording = false;
                         }
+                        
+                        // Inject a modifier release event so the OS knows we consumed the shortcut.
+                        // Without this, the physical key is still considered "held down" when ydotool
+                        // starts typing, which turns letters into shortcuts (e.g., Ctrl+H) and launches windows!
+                        if let Some(m) = target_mod {
+                            let release_event = InputEvent {
+                                tv_sec: event.tv_sec,
+                                tv_usec: event.tv_usec,
+                                type_: EV_KEY,
+                                code: m,
+                                value: KEY_RELEASE,
+                            };
+                            let release_buf: [u8; 24] = unsafe { std::mem::transmute(release_event) };
+                            let _ = io::stdout().write_all(&release_buf);
+                        }
+
                         space_was_swallowed = true;
                         continue;
                     }
