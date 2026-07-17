@@ -1,4 +1,14 @@
-- JOB: "intercept -g $DEVNODE | /usr/bin/interception_plugin | uinput -d $DEVNODE"
+# Reference for KEY names: https://github.com/torvalds/linux/blob/master/include/uapi/linux/input-event-codes.h
+- JOB: >
+    RECORD_KEY="KEY_SPACE"
+    RECORD_MOD="KEY_LEFTCTRL"
+    TOGGLE_KEY="KEY_SPACE"
+    TOGGLE_MOD="KEY_RIGHTCTRL"
+    
+    intercept -g $DEVNODE | 
+    /usr/bin/interception_plugin --key $RECORD_KEY --modifier $RECORD_MOD --toggle-key $TOGGLE_KEY --toggle-modifier $TOGGLE_MOD | 
+    uinput -d $DEVNODE
+
   DEVICE:
     EVENTS:
       EV_KEY: [KEY_SPACE, KEY_LEFTCTRL, KEY_RIGHTCTRL]

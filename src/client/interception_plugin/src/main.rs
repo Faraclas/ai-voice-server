@@ -1,3 +1,5 @@
+mod keys;
+
 use std::env;
 use std::io::{self, Read, Write};
 use std::net::UdpSocket;
@@ -18,7 +20,6 @@ struct InputEvent {
 }
 
 fn main() {
-    // Parse arguments: [--key 57] [--modifier 29]
     // 57 = KEY_SPACE, 29 = KEY_LEFTCTRL
     let mut target_key: u16 = 57;
     let mut target_mod: Option<u16> = Some(29);
@@ -31,27 +32,29 @@ fn main() {
         match args[i].as_str() {
             "--key" => {
                 if i + 1 < args.len() {
-                    target_key = args[i + 1].parse().unwrap_or(target_key);
+                    if let Some(k) = keys::parse_key(&args[i + 1]) {
+                        target_key = k;
+                    }
                     i += 1;
                 }
             }
             "--modifier" => {
                 if i + 1 < args.len() {
-                    let val: i32 = args[i + 1].parse().unwrap_or(-1);
-                    target_mod = if val >= 0 { Some(val as u16) } else { None };
+                    target_mod = keys::parse_key(&args[i + 1]);
                     i += 1;
                 }
             }
             "--toggle-key" => {
                 if i + 1 < args.len() {
-                    toggle_key = args[i + 1].parse().unwrap_or(toggle_key);
+                    if let Some(k) = keys::parse_key(&args[i + 1]) {
+                        toggle_key = k;
+                    }
                     i += 1;
                 }
             }
             "--toggle-modifier" => {
                 if i + 1 < args.len() {
-                    let val: i32 = args[i + 1].parse().unwrap_or(-1);
-                    toggle_mod = if val >= 0 { Some(val as u16) } else { None };
+                    toggle_mod = keys::parse_key(&args[i + 1]);
                     i += 1;
                 }
             }
