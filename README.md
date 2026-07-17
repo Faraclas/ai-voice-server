@@ -46,3 +46,6 @@ To add powerful voice formatting commands, we can introduce a lightweight Local 
 2. **LLM Filtering:** The FastAPI server instantly passes that raw text to a local LLM (e.g., Llama 3 or Gemma running via Ollama on the same Gentoo GPU).
 3. **Prompting:** The LLM is given a strict system prompt: *"You are a formatting assistant. Apply any formatting commands the user dictates. If they say 'new paragraph', insert `\n\n`. If they say 'make a bulleted list', format it appropriately. Do not change the original wording."*
 4. **Delivery:** The perfectly formatted text is returned to the client and auto-typed.
+
+### AMD GPU (ROCm) Support & Testing
+While the server is designed to compile with AMD ROCm support (via the `rocm` Gentoo USE flag), we have not yet tested this on actual AMD hardware. The `ai-voice-server.sh` wrapper script and `ai-voice-server-9999.ebuild` currently include logic for ROCm detection and fallback, but a physical test on an AMD GPU is still needed to ensure the `whisper.cpp` ROCm backend compiles correctly inside the Portage sandbox and runs stably in a production environment.
