@@ -20,11 +20,12 @@ struct InputEvent {
 }
 
 fn main() {
-    // 57 = KEY_SPACE, 29 = KEY_LEFTCTRL
-    let mut target_key: u16 = 57;
-    let mut target_mod: Option<u16> = Some(29);
-    let mut toggle_key: u16 = 57;
-    let mut toggle_mod: Option<u16> = Some(97);
+    // Default to KEY_RESERVED (0) so if configuration fails, 
+    // it passively passes all keys through without swallowing anything.
+    let mut target_key: u16 = 0; 
+    let mut target_mod: Option<u16> = None;
+    let mut toggle_key: u16 = 0;
+    let mut toggle_mod: Option<u16> = None;
 
     let args: Vec<String> = env::args().collect();
     let mut i = 1;
