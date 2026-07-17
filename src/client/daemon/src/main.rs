@@ -83,10 +83,15 @@ fn main() -> Result<()> {
 
                     info!("Injecting transcription ({} bytes)...", text.len());
                     log::debug!("Exact text: {}", text);
+                    
+                    // Allow the user to configure typing speeds via their client.env file, defaulting to 2ms
+                    let typing_delay = env::var("AI_VOICE_TYPING_DELAY").unwrap_or_else(|_| "2".to_string());
+                    let typing_hold = env::var("AI_VOICE_TYPING_HOLD").unwrap_or_else(|_| "2".to_string());
+                    
                     let output = Command::new("ydotool")
                         .arg("type")
-                        .arg("-d").arg("12")
-                        .arg("-H").arg("12")
+                        .arg("-d").arg(&typing_delay)
+                        .arg("-H").arg(&typing_hold)
                         .arg(&text)
                         .output()
                         .await;
