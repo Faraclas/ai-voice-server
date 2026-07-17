@@ -25,7 +25,7 @@ cd ~/code/ai-voice-server/python-prototype
 ## Architecture
 - **Server (v2):** A native Rust application (`src/server/`) using `axum` and `whisper-rs`. It is highly concurrent, gracefully degrades to CPU if the GPU is missing, and protects VRAM via a single-worker job queue.
 - **Server (v1 PoC):** A FastAPI application (`python-prototype/server/server.py`) running `faster-whisper`.
-- **Client:** A push-to-talk bash script (`python-prototype/client/dictate.sh`) designed to be bound to a global system hotkey on a Wayland desktop. It records audio, handles the API request, and auto-pastes the result.
+- **Client:** A toggle-based dictation client (press and release hotkey to start, press and release again to stop) designed to run as a background Wayland daemon. It records audio, handles the WebSocket connection, and auto-types or copies the result to the clipboard.
 
 ## Setup
 - **Server (v2):** Configure via `.env` for local testing, or `/etc/conf.d/ai-voice-server` for production systemd deployments.
