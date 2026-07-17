@@ -50,7 +50,8 @@ fn main() {
 
     let mut buf = [0u8; 24]; // sizeof(input_event) on 64-bit Linux
     let mut modifier_pressed = false;
-    let mut is_active = false;
+    let mut recording = false;
+    let mut space_was_swallowed = false;
 
     loop {
         if io::stdin().read_exact(&mut buf).is_err() {
@@ -63,13 +64,16 @@ fn main() {
             // Track modifier state if a modifier is configured
             if let Some(m) = target_mod {
                 if event.code == m {
-                    if event.value == KEY_PRESS {
+                    if event.value == KEY_PRESS || event.value == 2 {
                         modifier_pressed = true;
                     } else if event.value == KEY_RELEASE {
                         modifier_pressed = false;
                     }
                     // Always pass through the modifier key so other shortcuts still work
                     if io::stdout().write_all(&buf).is_err() {
+                        break;
+                    }
+                    if io::stdout().flush().is_err() {
                         break;
                     }
                     continue;
@@ -83,30 +87,41 @@ fn main() {
                     None => true,
                 };
 
-                // Trigger press if modifier is ok
-                // Trigger release if we are currently active (even if modifier was released early)
-                let should_trigger = (event.value == KEY_PRESS && mod_ok) || (event.value == KEY_RELEASE && is_active);
-
-                if should_trigger {
-                    if event.value == KEY_PRESS {
-                        is_active = true;
-                        let msg: &[u8] = b"PRESS";
-                        let _ = socket.send_to(msg, daemon_addr);
-                    } else if event.value == KEY_RELEASE {
-                        is_active = false;
-                        let msg: &[u8] = b"RELEASE";
-                        let _ = socket.send_to(msg, daemon_addr);
+                if event.value == KEY_PRESS { // Key down
+                    if mod_ok {
+                        if !recording {
+                            // Toggle ON
+                            let msg: &[u8] = b"PRESS";
+                            let _ = socket.send_to(msg, daemon_addr);
+                            recording = true;
+                        } else {
+                            // Toggle OFF
+                            let msg: &[u8] = b"RELEASE";
+                            let _ = socket.send_to(msg, daemon_addr);
+                            recording = false;
+                        }
+                        space_was_swallowed = true;
+                        continue;
                     }
-                    
-                    // Consume the target key (do not write to stdout)
-                    // This prevents the OS from receiving 'SPACE' when CTRL is held
-                    continue;
+                } else if event.value == KEY_RELEASE { // Key up
+                    if space_was_swallowed {
+                        // Swallow the release event so the OS doesn't see a stuck key
+                        space_was_swallowed = false;
+                        continue;
+                    }
+                } else if event.value == 2 { // Key repeat
+                    if mod_ok {
+                        continue;
+                    }
                 }
             }
         }
 
         // Pass through all other events
         if io::stdout().write_all(&buf).is_err() {
+            break;
+        }
+        if io::stdout().flush().is_err() {
             break;
         }
     }
