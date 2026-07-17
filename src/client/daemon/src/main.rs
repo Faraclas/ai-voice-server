@@ -45,6 +45,9 @@ fn main() -> Result<()> {
     let (audio_data_tx, audio_data_rx) = mpsc::channel::<Vec<u8>>(100);
     let (text_tx, mut text_rx) = mpsc::channel::<String>(10);
     let (status_tx, status_rx) = mpsc::channel::<(String, Option<f64>)>(10);
+    
+    // Channel to coordinate the physical release of the modifier key
+    let (mod_up_tx, mut mod_up_rx) = tokio::sync::watch::channel(true);
 
     // 2. Start Tokio Runtime for Async Tasks (Networking and UDP)
     std::thread::spawn(move || {
@@ -67,12 +70,19 @@ fn main() -> Result<()> {
             tokio::spawn(async move {
                 info!("Listening for transcription results...");
                 while let Some(text) = text_rx.recv().await {
+                    // Wait for physical modifier release to prevent global shortcut triggering
+                    let mut rx = mod_up_rx.clone();
+                    if !*rx.borrow() {
+                        info!("Waiting for physical modifier key to be released...");
+                        let _ = rx.changed().await;
+                    }
+
                     info!("Injecting transcription ({} bytes)...", text.len());
                     log::debug!("Exact text: {}", text);
                     let output = Command::new("ydotool")
                         .arg("type")
-                        .arg("-d").arg("12")
-                        .arg("-H").arg("12")
+                        .arg("-d").arg("0")
+                        .arg("-H").arg("0")
                         .arg(&text)
                         .output()
                         .await;
@@ -100,7 +110,10 @@ fn main() -> Result<()> {
                         if msg == b"PRESS" {
                             let _ = hotkey_tx.send(HotkeyEvent::Press).await;
                         } else if msg == b"RELEASE" {
+                            let _ = mod_up_tx.send(false);
                             let _ = hotkey_tx.send(HotkeyEvent::Release).await;
+                        } else if msg == b"MODIFIER_UP" {
+                            let _ = mod_up_tx.send(true);
                         }
                     }
                     Err(e) => error!("UDP receive error: {}", e),

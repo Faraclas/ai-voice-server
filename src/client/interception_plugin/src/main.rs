@@ -52,6 +52,7 @@ fn main() {
     let mut modifier_pressed = false;
     let mut recording = false;
     let mut space_was_swallowed = false;
+    let mut waiting_for_mod_release = false;
 
     loop {
         if io::stdin().read_exact(&mut buf).is_err() {
@@ -68,6 +69,10 @@ fn main() {
                         modifier_pressed = true;
                     } else if event.value == KEY_RELEASE {
                         modifier_pressed = false;
+                        if waiting_for_mod_release {
+                            let _ = socket.send_to(b"MODIFIER_UP", daemon_addr);
+                            waiting_for_mod_release = false;
+                        }
                     }
                     // Always pass through the modifier key so other shortcuts still work
                     if io::stdout().write_all(&buf).is_err() {
@@ -99,21 +104,18 @@ fn main() {
                             let msg: &[u8] = b"RELEASE";
                             let _ = socket.send_to(msg, daemon_addr);
                             recording = false;
-                        }
-                        
-                        // Inject a modifier release event so the OS knows we consumed the shortcut.
-                        // Without this, the physical key is still considered "held down" when ydotool
-                        // starts typing, which turns letters into shortcuts (e.g., Ctrl+H) and launches windows!
-                        if let Some(m) = target_mod {
-                            let release_event = InputEvent {
-                                tv_sec: event.tv_sec,
-                                tv_usec: event.tv_usec,
-                                type_: EV_KEY,
-                                code: m,
-                                value: KEY_RELEASE,
-                            };
-                            let release_buf: [u8; 24] = unsafe { std::mem::transmute(release_event) };
-                            let _ = io::stdout().write_all(&release_buf);
+                            
+                            // Let the daemon know if we need to wait for the physical release of the modifier
+                            if target_mod.is_some() {
+                                if modifier_pressed {
+                                    waiting_for_mod_release = true;
+                                } else {
+                                    let _ = socket.send_to(b"MODIFIER_UP", daemon_addr);
+                                }
+                            } else {
+                                // No modifier required, so we consider it "up"
+                                let _ = socket.send_to(b"MODIFIER_UP", daemon_addr);
+                            }
                         }
 
                         space_was_swallowed = true;
