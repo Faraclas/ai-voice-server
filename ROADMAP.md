@@ -64,6 +64,7 @@ The original client relied on bash scripts (`dictate.sh`), standard GNOME deskto
 5. **Future Work:**
 - Add the LLM formatting engine mentioned in the original README.
 - **Performance Benchmarking (CUDA vs Vulkan):** While the Vulkan backend compiles smoothly and performs well natively, we need to revisit and benchmark a proper CUDA compile (`--features nvidia`) once the CUDA toolkit is installed. The goal is to rigorously compare latency and throughput to see if Vulkan truly matches CUDA on the RTX 3060 Ti for `whisper.cpp` workloads.
+- **AMD / ROCm Support & eGPU Hot-plugging:** The `rocm` build backend has not yet been physically tested on AMD hardware. Crucially, we have not tested or designed udev rules for AMD eGPUs. When we eventually test AMD support, we will need to identify the correct udev attributes (e.g., AMD vendor IDs) to ensure the service gracefully auto-restarts upon hot-plugging, just like it currently does for NVIDIA.
 
 ## Packaging (Gentoo Ebuilds)
 - **Goal:** Package the entire project into the user's personal Gentoo overlay for native package management.

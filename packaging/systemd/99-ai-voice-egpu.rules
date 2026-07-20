@@ -1,0 +1,2 @@
+# Auto-restart the AI Voice Server when an NVIDIA GPU (Vendor 10de) is initialized
+ACTION=="add", SUBSYSTEM=="drm", KERNEL=="card*", ATTRS{vendor}=="0x10de", RUN+="/usr/bin/systemctl try-restart --no-block ai-voice-server.service"
