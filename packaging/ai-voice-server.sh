@@ -4,7 +4,18 @@
 
 # 1. Check for NVIDIA eGPU
 if command -v nvidia-smi &> /dev/null && nvidia-smi &> /dev/null && [ -x /usr/bin/ai-voice-server-cuda ]; then
-    echo "NVIDIA GPU detected! Launching CUDA-optimized server..."
+    echo "NVIDIA GPU detected! Waiting for CUDA compute subsystem (nvidia-uvm)..."
+    
+    # Deterministic wait for CUDA compute (nvidia-uvm) to become ready
+    # We timeout after 10 seconds (50 * 0.2s) to prevent hanging
+    for i in {1..50}; do
+        if [ -e /dev/nvidia-uvm ]; then
+            break
+        fi
+        sleep 0.2
+    done
+
+    echo "Launching CUDA-optimized server..."
     exec /usr/bin/ai-voice-server-cuda "$@"
 
 # 2. Check for ROCm (AMD GPU)
