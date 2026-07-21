@@ -15,11 +15,15 @@ if command -v nvidia-smi &> /dev/null && nvidia-smi &> /dev/null && [ -x /usr/bi
         sleep 0.2
     done
 
-    # Even after device nodes are created, the eGPU needs time to be ready for compute over Thunderbolt.
-    # If the system just booted (uptime < 120s), we must give the Nvidia driver 5 seconds to warm up the PCI bus.
-    if [ $(awk '{print int($1)}' /proc/uptime) -lt 120 ]; then
-        echo "Early boot detected. Giving the eGPU hardware 5 seconds to warm up compute..."
-        sleep 5
+    # The NVIDIA Open Kernel Modules crash with assertion failures (!rmapiLockIsOwner) during early boot with this eGPU.
+    # It takes the display manager and kernel about 30-45 seconds to reset the GPU into a usable state.
+    # We dynamically pause execution here until the system has been up for exactly 60 seconds.
+    uptime_seconds=$(awk '{print int($1)}' /proc/uptime)
+    if [ "$uptime_seconds" -lt 60 ]; then
+        wait_time=$((60 - uptime_seconds))
+        echo "Early boot detected (uptime ${uptime_seconds}s). Nvidia kernel driver may be unstable."
+        echo "Pausing for ${wait_time} seconds to allow the driver to fully recover before initializing CUDA..."
+        sleep $wait_time
     fi
 
     echo "Launching CUDA-optimized server..."
