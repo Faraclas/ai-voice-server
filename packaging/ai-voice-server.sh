@@ -2,6 +2,19 @@
 # /usr/bin/ai-voice-server
 # Hardware-aware launcher for the AI Voice Server
 
+# --- Early Boot Stabilization ---
+# The NVIDIA Open Kernel Modules crash with assertion failures (!rmapiLockIsOwner) during early boot with this eGPU.
+# It takes the display manager and kernel about 30-45 seconds to reset the GPU into a usable state.
+# We dynamically pause execution here unconditionally on early boot, giving hardware time to stabilize
+# before we probe `nvidia-smi`.
+uptime_seconds=$(awk '{print int($1)}' /proc/uptime)
+if [ "$uptime_seconds" -lt 60 ]; then
+    wait_time=$((60 - uptime_seconds))
+    echo "Early boot detected (uptime ${uptime_seconds}s). Nvidia kernel driver may be unstable."
+    echo "Pausing for ${wait_time} seconds to allow the driver to fully recover before checking for eGPUs..."
+    sleep $wait_time
+fi
+
 # 1. Check for NVIDIA eGPU
 if command -v nvidia-smi &> /dev/null && nvidia-smi &> /dev/null && [ -x /usr/bin/ai-voice-server-cuda ]; then
     echo "NVIDIA GPU detected! Waiting for CUDA compute subsystem (nvidia-uvm)..."
@@ -14,17 +27,6 @@ if command -v nvidia-smi &> /dev/null && nvidia-smi &> /dev/null && [ -x /usr/bi
         fi
         sleep 0.2
     done
-
-    # The NVIDIA Open Kernel Modules crash with assertion failures (!rmapiLockIsOwner) during early boot with this eGPU.
-    # It takes the display manager and kernel about 30-45 seconds to reset the GPU into a usable state.
-    # We dynamically pause execution here until the system has been up for exactly 60 seconds.
-    uptime_seconds=$(awk '{print int($1)}' /proc/uptime)
-    if [ "$uptime_seconds" -lt 60 ]; then
-        wait_time=$((60 - uptime_seconds))
-        echo "Early boot detected (uptime ${uptime_seconds}s). Nvidia kernel driver may be unstable."
-        echo "Pausing for ${wait_time} seconds to allow the driver to fully recover before initializing CUDA..."
-        sleep $wait_time
-    fi
 
     echo "Launching CUDA-optimized server..."
     exec /usr/bin/ai-voice-server-cuda "$@"
