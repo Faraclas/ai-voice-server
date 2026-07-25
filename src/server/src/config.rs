@@ -57,7 +57,7 @@ impl AppConfig {
             match dev.as_str() {
                 "cuda" | "nvidia" => {
                     if std::process::Command::new("nvidia-smi").output().is_ok()
-                        && std::path::Path::new("/dev/nvidia-uvm").exists()
+                        && std::fs::OpenOptions::new().read(true).write(true).open("/dev/nvidia-uvm").is_ok()
                     {
                         use_gpu = true;
                         active_device = "cuda".to_string();
