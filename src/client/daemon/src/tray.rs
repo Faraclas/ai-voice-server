@@ -25,7 +25,7 @@ impl Tray for AppTray {
         let status = self.status.read().unwrap_or_else(|e| e.into_inner());
         match status.as_str() {
             "Recording" => "media-record-symbolic".to_string(),
-            "Processing" => "dialog-warning-symbolic".to_string(),
+            "WS_Open" | "Processing" => "dialog-warning-symbolic".to_string(),
             "Disconnected" | "Offline" => "dialog-error-symbolic".to_string(),
             _ => "microphone-sensitivity-high-symbolic".to_string(),
         }

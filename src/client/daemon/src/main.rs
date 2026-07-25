@@ -501,7 +501,23 @@ fn main() -> Result<()> {
             main_context.spawn_local(async move {
                 info!("Listening for server status updates...");
                 while let Some((status, pct)) = rx.recv().await {
-                    if status == "downloading" {
+                    if status == "ws_connected" {
+                        {
+                            let mut st = st_gtk2.write().unwrap_or_else(|e| e.into_inner());
+                            if *st != "Disconnected" && *st != "Offline" && *st != "Recording" {
+                                *st = "WS_Open".to_string();
+                            }
+                        }
+                        th_gtk2.update(|_| {});
+                    } else if status == "ws_disconnected" {
+                        {
+                            let mut st = st_gtk2.write().unwrap_or_else(|e| e.into_inner());
+                            if *st != "Disconnected" && *st != "Offline" && *st != "Recording" {
+                                *st = "Connected".to_string();
+                            }
+                        }
+                        th_gtk2.update(|_| {});
+                    } else if status == "downloading" {
                         if !window_clone.is_visible() {
                             window_clone.set_visible(true);
                         }
@@ -513,7 +529,9 @@ fn main() -> Result<()> {
                     } else if status == "ready" || status == "done" {
                         {
                             let mut st = st_gtk2.write().unwrap_or_else(|e| e.into_inner());
-                            *st = "Connected".to_string();
+                            if *st != "Disconnected" && *st != "Offline" && *st != "Recording" {
+                                *st = "WS_Open".to_string();
+                            }
                         }
                         th_gtk2.update(|_| {});
                         window_clone.set_visible(false);

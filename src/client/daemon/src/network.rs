@@ -62,12 +62,14 @@ impl NetworkClient {
                 }
             };
             info!("WebSocket connected successfully");
+            let _ = status_tx.send(("ws_connected".to_string(), None)).await;
             
             let (mut ws_write, mut ws_read) = ws_stream.split();
             
             // Send the first chunk
             if let Err(e) = ws_write.send(Message::Binary(first_chunk.into())).await {
                 error!("Failed to send initial audio chunk: {}", e);
+                let _ = status_tx.send(("ws_disconnected".to_string(), None)).await;
                 continue;
             }
             
@@ -94,7 +96,10 @@ impl NetworkClient {
                                     }
                                 }
                             }
-                            None => return Ok(()), // Audio channel closed, exit completely
+                            None => {
+                                let _ = status_tx.send(("ws_disconnected".to_string(), None)).await;
+                                return Ok(()); // Audio channel closed, exit completely
+                            }
                         }
                     }
                     
@@ -141,6 +146,7 @@ impl NetworkClient {
                     }
                 }
             }
+            let _ = status_tx.send(("ws_disconnected".to_string(), None)).await;
         }
         
         info!("Network client shutting down.");
