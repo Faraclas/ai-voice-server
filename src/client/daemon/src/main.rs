@@ -105,14 +105,20 @@ fn main() -> Result<()> {
     let _ = dotenvy::dotenv();
     if let Some(home) = dirs::config_dir() {
         let _ = dotenvy::from_path(home.join("ai-voice-server/client.env"));
+        let _ = dotenvy::from_path(home.join("ai-voice/client.env"));
+        let _ = dotenvy::from_path(home.join("ai-voice"));
     }
     let _ = dotenvy::from_path("/etc/ai-voice-server/client.env");
     env_logger::init();
     
     info!("Starting AI Voice Server Client Daemon...");
 
-    let ws_url = env::var("AI_VOICE_SERVER_WS_URL")
-        .unwrap_or_else(|_| "ws://127.0.0.1:3000/stream".to_string());
+    let ws_url = if let (Ok(host), Ok(port)) = (env::var("SERVER_HOST"), env::var("SERVER_PORT")) {
+        format!("ws://{}:{}/stream", host, port)
+    } else {
+        env::var("AI_VOICE_SERVER_WS_URL")
+            .unwrap_or_else(|_| "ws://127.0.0.1:3000/stream".to_string())
+    };
     
     let admin_key_val = env::var("AI_VOICE_ADMIN_API_KEY").ok().filter(|s| !s.is_empty());
     let initial_output_mode = env::var("AI_VOICE_OUTPUT_MODE").unwrap_or_else(|_| "type".to_string());

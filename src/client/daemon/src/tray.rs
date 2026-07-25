@@ -136,11 +136,29 @@ impl Tray for AppTray {
                 ..Default::default()
             }.into(),
             StandardItem {
+                label: "🔄 Restart Local Client Service".to_string(),
+                activate: Box::new(|_| {
+                    let _ = std::process::Command::new("systemctl")
+                        .arg("--user")
+                        .arg("restart")
+                        .arg("ai-voice-client")
+                        .spawn();
+                }),
+                ..Default::default()
+            }.into(),
+            StandardItem {
                 label: "⚙️ Edit Client Config".to_string(),
                 activate: Box::new(|_| {
                     if let Some(home) = dirs::config_dir() {
-                        let env_path = home.join("ai-voice-server/client.env");
-                        let _ = open::that(env_path);
+                        let path1 = home.join("ai-voice");
+                        let path2 = home.join("ai-voice-server/client.env");
+                        if path1.exists() {
+                            let _ = open::that(path1);
+                        } else if path2.exists() {
+                            let _ = open::that(path2);
+                        } else {
+                            let _ = open::that(path2);
+                        }
                     }
                 }),
                 ..Default::default()
