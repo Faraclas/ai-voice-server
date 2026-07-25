@@ -267,13 +267,19 @@ from the working directory if one exists, simplifying local testing.
   - `Restart=on-failure`.
 - **Hardware detection depends on `GPU_MODE` (§7) and the compiled backend
   (§6.6):**
+  - **Probe Retry Loop:** During startup (`AppConfig::load()`), if initial GPU probing
+    fails, the server executes up to 5 retries with 1-second delays before falling
+    back to CPU. This handles early boot race conditions where `nvidia-uvm` or udev
+    devices settle slightly after service launch.
   - `GPU_MODE=require`: gate startup with a backend-appropriate `ExecCondition`
     (`nvidia-smi` for `nvidia`, `rocm-smi` for `rocm`, `vulkaninfo` for
     `vulkan`) so the service **skips** (not fails) when the GPU is absent — the
-    ROADMAP "graceful degradation" behavior. Because the right condition depends
-    on the enabled USE flags, this belongs in the ebuild, not the source.
+    ROADMAP "graceful degradation" behavior.
   - `GPU_MODE=auto`: no `ExecCondition`; the service starts and runs CPU-only
-    when the GPU is missing.
+    when the GPU is missing after retry attempts.
+  - **Graceful Service Restart (`POST /restart`):** When requested by an admin,
+    Axum finishes in-flight transcription jobs gracefully before calling `std::process::exit(0)`,
+    allowing systemd to restart the daemon cleanly.
 - `ExecStart` points at the compiled binary; no `LD_LIBRARY_PATH` hack needed —
   GPU libs are resolved at build/link time and declared as overlay `RDEPEND`s.
 

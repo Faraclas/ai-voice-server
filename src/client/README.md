@@ -1,27 +1,46 @@
-# AI Voice Server - Rust Client (v2)
+# AI Voice Server - Rust Client
 
-This is the next-generation native Rust client for the AI Voice Dictation system.
+This directory contains the native Rust client daemon and kernel hotkey
+plugin for the AI Voice Dictation system.
+
+---
 
 ## Dependencies
 
-To build and run this client (especially on a Gentoo Linux host), you will need to install the following system dependencies:
+When installing via Portage (`emerge -av app-misc/ai-voice-server`), these
+dependencies are managed automatically by the ebuild. For manual source builds,
+ensure the following system packages are installed:
 
-1. **`gtk4-layer-shell`**
-   - **Purpose:** Used to draw the Wayland native overlay GUI. It is required for the Rust client to compile.
-   - **Gentoo Package:** `gui-libs/gtk4-layer-shell`
-   - **Install:** `sudo emerge -av gui-libs/gtk4-layer-shell`
+1. **`gui-libs/gtk4-layer-shell`**
+   - **Purpose:** Draws the Wayland-native GTK OSD overlay. Required for GTK
+     layer shell bindings.
+2. **`app-misc/interception-tools`**
+   - **Purpose:** Low-level `evdev` event manipulation framework. Runs the
+     `interception_plugin` binary under `udevmon` for global hotkey grabbing.
+3. **`x11-misc/ydotool`**
+   - **Purpose:** Kernel-level uinput keystroke simulator for auto-typing text
+     into active applications on Wayland.
 
-2. **`interception-tools`**
-   - **Purpose:** A low-level `udev`/`evdev` manipulation framework. The client uses a custom interception plugin to capture the dictation hotkey at the hardware level (allowing it to work across VM boundaries) and to safely inject the transcribed text back into the input stream.
-   - **Gentoo Package:** `app-misc/interception-tools`
-   - **Install:** `sudo emerge -av app-misc/interception-tools`
+---
 
-3. **`ydotool`**
-   - **Purpose:** Provides kernel-level auto-typing of the transcribed text (bypassing strict Wayland security policies where tools like `xdotool` fail). It may be used alongside or as an alternative to the interception plugin for text injection.
-   - **Gentoo Package:** `x11-misc/ydotool`
-   - **Install:** `sudo emerge -av x11-misc/ydotool`
+## Running & Services
 
-## Building
+When installed via Portage, the client components run as background services:
+
+```bash
+# Start input interception daemon (root)
+sudo systemctl enable --now udevmon
+
+# Start ydotool virtual keyboard daemon (user)
+systemctl --user enable --now ydotool
+
+# Start AI Voice Client overlay daemon (user)
+systemctl --user enable --now ai-voice-client
+```
+
+---
+
+## Manual Building
 
 ```bash
 cargo build --release

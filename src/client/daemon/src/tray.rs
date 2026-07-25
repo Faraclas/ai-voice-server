@@ -1,0 +1,181 @@
+use ksni::{Tray, MenuItem, menu::*};
+use std::sync::{Arc, RwLock};
+use tokio::sync::mpsc;
+
+#[derive(Clone)]
+pub struct AppTray {
+    pub status: Arc<RwLock<String>>,
+    pub active_device: Arc<RwLock<String>>,
+    pub loaded_model: Arc<RwLock<String>>,
+    pub output_mode: Arc<RwLock<String>>,
+    pub server_url: String,
+    pub admin_key: Arc<RwLock<Option<String>>>,
+    pub restart_tx: mpsc::Sender<()>,
+    pub model_swap_tx: mpsc::Sender<String>,
+    pub test_conn_tx: mpsc::Sender<()>,
+    pub toggle_mode_tx: mpsc::Sender<()>,
+}
+
+impl Tray for AppTray {
+    fn icon_name(&self) -> String {
+        let status = self.status.read().unwrap_or_else(|e| e.into_inner());
+        if *status == "Connected" || *status == "ready" {
+            "microphone-sensitivity-high-symbolic".to_string()
+        } else {
+            "dialog-warning-symbolic".to_string()
+        }
+    }
+
+    fn title(&self) -> String {
+        "AI Voice Client".to_string()
+    }
+
+    fn tool_tip(&self) -> ksni::ToolTip {
+        let status = self.status.read().unwrap_or_else(|e| e.into_inner());
+        let device = self.active_device.read().unwrap_or_else(|e| e.into_inner());
+        let model = self.loaded_model.read().unwrap_or_else(|e| e.into_inner());
+        ksni::ToolTip {
+            title: format!("AI Voice Client ({})", status),
+            description: format!("Compute: {}\nModel: {}", device.to_uppercase(), model),
+            icon_name: self.icon_name(),
+            icon_pixmap: Vec::new(),
+        }
+    }
+
+    fn menu(&self) -> Vec<MenuItem<Self>> {
+        let mode = self.output_mode.read().unwrap_or_else(|e| e.into_inner()).clone();
+        let device = self.active_device.read().unwrap_or_else(|e| e.into_inner()).clone();
+        let model = self.loaded_model.read().unwrap_or_else(|e| e.into_inner()).clone();
+        let status = self.status.read().unwrap_or_else(|e| e.into_inner()).clone();
+
+        let is_type = mode.to_lowercase() == "type";
+        let is_clip = mode.to_lowercase() == "clipboard";
+
+        vec![
+            StandardItem {
+                label: format!("Status: {}", status),
+                enabled: false,
+                ..Default::default()
+            }.into(),
+            StandardItem {
+                label: format!("Compute: {}", device.to_uppercase()),
+                enabled: false,
+                ..Default::default()
+            }.into(),
+            StandardItem {
+                label: format!("Model: {}", model),
+                enabled: false,
+                ..Default::default()
+            }.into(),
+            MenuItem::Separator,
+            StandardItem {
+                label: format!("{} Auto-Typing (ydotool)", if is_type { "●" } else { "○" }),
+                activate: Box::new(|this: &mut AppTray| {
+                    let tx = this.toggle_mode_tx.clone();
+                    tokio::spawn(async move {
+                        let _ = tx.send(()).await;
+                    });
+                }),
+                ..Default::default()
+            }.into(),
+            StandardItem {
+                label: format!("{} Clipboard Copy (wl-copy)", if is_clip { "●" } else { "○" }),
+                activate: Box::new(|this: &mut AppTray| {
+                    let tx = this.toggle_mode_tx.clone();
+                    tokio::spawn(async move {
+                        let _ = tx.send(()).await;
+                    });
+                }),
+                ..Default::default()
+            }.into(),
+            MenuItem::Separator,
+            SubMenu {
+                label: "Remote Model Hot-Swap".to_string(),
+                submenu: vec![
+                    StandardItem {
+                        label: "small.en".to_string(),
+                        activate: Box::new(|this: &mut AppTray| {
+                            let tx = this.model_swap_tx.clone();
+                            tokio::spawn(async move {
+                                let _ = tx.send("small.en".to_string()).await;
+                            });
+                        }),
+                        ..Default::default()
+                    }.into(),
+                    StandardItem {
+                        label: "medium.en".to_string(),
+                        activate: Box::new(|this: &mut AppTray| {
+                            let tx = this.model_swap_tx.clone();
+                            tokio::spawn(async move {
+                                let _ = tx.send("medium.en".to_string()).await;
+                            });
+                        }),
+                        ..Default::default()
+                    }.into(),
+                    StandardItem {
+                        label: "large-v3".to_string(),
+                        activate: Box::new(|this: &mut AppTray| {
+                            let tx = this.model_swap_tx.clone();
+                            tokio::spawn(async move {
+                                let _ = tx.send("large-v3".to_string()).await;
+                            });
+                        }),
+                        ..Default::default()
+                    }.into(),
+                ],
+                ..Default::default()
+            }.into(),
+            MenuItem::Separator,
+            StandardItem {
+                label: "🌐 Open Server Web Page".to_string(),
+                activate: Box::new(|this: &mut AppTray| {
+                    let url = this.server_url.clone();
+                    let http_url = url
+                        .replace("ws://", "http://")
+                        .replace("wss://", "https://")
+                        .replace("/stream", "");
+                    let _ = open::that(http_url);
+                }),
+                ..Default::default()
+            }.into(),
+            StandardItem {
+                label: "⚡ Restart Remote Server Service".to_string(),
+                activate: Box::new(|this: &mut AppTray| {
+                    let tx = this.restart_tx.clone();
+                    tokio::spawn(async move {
+                        let _ = tx.send(()).await;
+                    });
+                }),
+                ..Default::default()
+            }.into(),
+            StandardItem {
+                label: "⚙️ Edit Client Config".to_string(),
+                activate: Box::new(|_| {
+                    if let Some(home) = dirs::config_dir() {
+                        let env_path = home.join("ai-voice-server/client.env");
+                        let _ = open::that(env_path);
+                    }
+                }),
+                ..Default::default()
+            }.into(),
+            StandardItem {
+                label: "🔄 Test Connection".to_string(),
+                activate: Box::new(|this: &mut AppTray| {
+                    let tx = this.test_conn_tx.clone();
+                    tokio::spawn(async move {
+                        let _ = tx.send(()).await;
+                    });
+                }),
+                ..Default::default()
+            }.into(),
+            MenuItem::Separator,
+            StandardItem {
+                label: "Quit Client".to_string(),
+                activate: Box::new(|_| {
+                    std::process::exit(0);
+                }),
+                ..Default::default()
+            }.into(),
+        ]
+    }
+}

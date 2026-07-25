@@ -6,6 +6,7 @@ use crate::AppState;
 pub struct HealthResponse {
     pub status: String,
     pub gpu_active: bool,
+    pub active_device: String,
     pub loaded_model: String,
 }
 
@@ -15,6 +16,7 @@ pub async fn health_handler(State(state): State<AppState>) -> Json<HealthRespons
         Err(e) => Json(HealthResponse {
             status: format!("error: {}", e),
             gpu_active: false,
+            active_device: "cpu".to_string(),
             loaded_model: "".to_string(),
         }),
     }

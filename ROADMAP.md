@@ -1,76 +1,89 @@
 # AI Voice Server: Project Roadmap
 
-**Current State: Stable Proof of Concept (PoC)**
-The current bash and Python scripts in this repository work exceptionally well as a lightweight, functional Proof of Concept. To preserve a working baseline, we will **not** aggressively edit or mutate these existing scripts. 
-
-Instead, this roadmap outlines the plan to use the lessons learned from the PoC to build a robust, system-level **Production Version (v2)** alongside it.
-
----
-
-## The Production Vision (v2)
-
-## Server Improvements
-
-Currently, the server is run manually via SSH and requires an active session (or Tmux) to stay alive. It also assumes the external GPU is always present.
-
-### 1. Systemd Integration
-- **Goal:** Convert the server script into a background `systemd` service so it starts automatically and runs headlessly without an active SSH session.
-- **Tasks:**
-  - Create a `ai-voice-server.service` file.
-  - Implement a configuration file (e.g., in `/etc/default/ai-voice-server` or a local `.env`) to easily change variables like the **model size** (base, small, medium) directly through systemd.
-
-### 2. Hardware Detection (Graceful Degradation)
-- **Goal:** Ensure the service doesn't crash or cause issues if the external NVIDIA GPU is not plugged in during boot.
-- **Tasks:**
-  - Add a pre-start check in the server script (or systemd `ExecStartPre`) to detect the NVIDIA GPU (e.g., using `nvidia-smi` or checking PCI devices).
-  - If the GPU is not found, gracefully exit the service or fall back to a CPU-only mode (if desired).
-
-### 3. Remote Administration API (Model Hot-Swapping)
-- **Goal:** Allow remote clients to change the active model (e.g., switch to `large-v3`) dynamically without needing to SSH into the server to edit config files or restart the systemd service.
-- **Tasks:**
-  - Build authenticated endpoints into the Rust server (e.g. `POST /admin/model/swap`) protected by an `ADMIN_API_KEY` defined in the config.
-  - Implement auto-downloading logic in the Rust server so it can automatically fetch missing `.bin` models from HuggingFace.
-  - Implement seamless hot-swapping in the Rust server to drop the old model from GPU memory and load the new one on the fly.
-  - Add admin CLI commands to the client-side Rust application to securely communicate with this new endpoint.
+This roadmap outlines planned future features, enhancements, and upcoming
+milestones for the AI Voice Server project. Completed features (such as the
+Rust v2 client/server architecture, systemd services, and Portage ebuild) are
+documented in the primary [README.md](README.md) and [docs/](docs/).
 
 ---
 
-## Client Improvements
+## 1. Audio Feedback Cues
 
-The original client relied on bash scripts (`dictate.sh`), standard GNOME desktop notifications, and desktop environment shortcuts, which caused clutter, workflow interruptions, and VM capture issues. We have replaced this with a native, robust Rust daemon.
-
-### 1. Low-Level Hotkey Interception (`interception-tools`)
-- **Problem:** GNOME keyboard shortcuts are captured by KVM virtual machines, requiring the user to manually click out of the VM to trigger dictation, and click back in to paste.
-- **Goal:** Bypass the desktop environment's shortcut manager entirely so the dictation hotkey works globally with zero latency.
-- **Status (Done):** Built a native, blazing-fast Rust plugin (`interceptor`) for `sys-apps/interception-tools` to grab the keyboard at the kernel level (`/dev/input`). It implements a true toggle logic (e.g. `Left_Ctrl + Space`), swallowing the hotkey before KVM sees it and triggering the daemon via UDP.
-
-### 2. UI and Audio Feedback
-- **Problem:** Standard `notify-send` notifications clutter the tray, don't show up reliably across all workspaces, and trigger in awkward orders.
-- **Status (Partially Done):** Implemented a lightweight, native GTK OSD overlay directly in the Rust daemon using `gtk4-layer-shell` (with graceful fallback for vanilla GNOME Wayland).
-- **Goal (Pending):** Provide immediate, non-intrusive auditory feedback. Replace the need for visual confirmation with short, subtle audio cues (e.g., a 'click' or 'beep' using PipeWire/`paplay`) that trigger instantly when recording starts, stops, and successfully pastes.
-
-### 3. Auto-Pasting (`ydotool`)
-- **Problem:** `dictate.sh` originally relied on `wl-copy`, which required clicking back into the target window to paste.
-- **Goal:** Automatically inject the returned text into the active window identically across all OS contexts.
-- **Status (Done):** Natively integrated `ydotool` directly into the Rust daemon's Tokio async runtime to instantaneously type the transcribed text with zero delay, bypassing all clipboard inconsistencies.
+- **Goal:** Provide subtle, non-intrusive auditory confirmation during push-to-talk dictation.
+- **Details:** 
+  - Play a lightweight sound cue (e.g. via PipeWire / `paplay` or native Rust
+    audio buffer) when recording starts, stops, and successfully completes
+    text injection.
+  - Allows users to dictate confidently without needing to watch the GTK OSD.
 
 ---
 
-## Proposed Next Steps
-1. **Server Stabilization:** (Done) The systemd unit, fail-safe timeouts, and graceful hardware checks are written.
-2. **Client Foundation:** (Done) The Rust GTK daemon, Tokio networking, and `ydotool` auto-pasting are complete.
-3. **Client Hotkeys:** (Done) The native `interceptor` plugin is integrated and functioning perfectly as a toggle.
-4. **Audio Cues:** (Pending) Add `paplay` sound effects to the daemon.
-5. **Future Work:**
-- Add the LLM formatting engine mentioned in the original README.
-- **Performance Benchmarking (CUDA vs Vulkan):** While the Vulkan backend compiles smoothly and performs well natively, we need to revisit and benchmark a proper CUDA compile (`--features nvidia`) once the CUDA toolkit is installed. The goal is to rigorously compare latency and throughput to see if Vulkan truly matches CUDA on the RTX 3060 Ti for `whisper.cpp` workloads.
-- **AMD / ROCm Support & eGPU Hot-plugging:** The `rocm` build backend has not yet been physically tested on AMD hardware. Crucially, we have not tested or designed udev rules for AMD eGPUs. When we eventually test AMD support, we will need to identify the correct udev attributes (e.g., AMD vendor IDs) to ensure the service gracefully auto-restarts upon hot-plugging, just like it currently does for NVIDIA.
+## 2. LLM Formatting Engine (Voice Commands)
 
-## Packaging (Gentoo Ebuilds)
-- **Goal:** Package the entire project into the user's personal Gentoo overlay for native package management.
-- **Tasks:**
-  - Create an ebuild with `client` and `server` USE flags.
-    - **Note:** Ensure that the ebuild explicitly requires `x11-misc/ydotool` as a dependency if `USE=client` is set.
-    - **Note:** Ensure that the ebuild explicitly requires `app-misc/interception-tools` as a dependency if `USE=client` is set.
-    - **Note:** Explicitly enforce that `systemd`, `wayland`, and `pipewire` are REQUIRED environment configurations. OpenRC, X11, and raw ALSA/PulseAudio are unsupported.
-  - Move the repository to the final overlay location once the structure is finalized.
+- **Goal:** Enable natural voice commands for text formatting (e.g., "new
+  paragraph", "bulleted list", "capitalize next word").
+- **Proposed Architecture:**
+  - Whisper converts raw audio into unformatted text.
+  - The server passes the transcribed text to a local LLM (e.g., Llama 3 or
+    Gemma via Ollama/llama.cpp) with a strict system prompt.
+  - The LLM applies formatting instructions without altering the original speech
+    wording before returning it to the client.
+
+---
+
+## 3. Performance Benchmarking (CUDA vs. Vulkan)
+
+- **Goal:** Conduct rigorous latency and throughput benchmarks between compute
+  backends on the RTX 3060 Ti.
+- **Details:**
+  - Compare Vulkan (`--features vulkan`) vs. CUDA (`--features nvidia`) across
+    various Whisper model sizes (`small.en`, `medium.en`, `large-v3`).
+  - Measure VRAM allocation efficiency, warm-path inference latency, and cold
+    model load times.
+
+---
+
+## 4. AMD / ROCm Hardware Validation & eGPU Hot-Plugging
+
+- **Goal:** Physically test and validate ROCm builds on AMD GPU hardware.
+- **Details:**
+  - Verify that the `rocm` build backend (`hipblas`) compiles cleanly inside
+    the Gentoo Portage sandbox.
+  - Benchmark inference speed on AMD GPUs.
+  - Test and verify `udev` rules for AMD eGPUs to ensure seamless auto-restart
+    upon hot-plugging, matching the existing NVIDIA eGPU behavior.
+
+---
+
+## 5. Background Service System Tray Icon & Pop-up Menu
+
+- **Goal:** Implement a system tray icon (`ksni` / `libappindicator` / GTK tray)
+  that remains active in the system panel while `ai-voice-client` runs as a
+  background systemd user service.
+- **Tray Menu Options:**
+  - **Status & Compute Header:** Display real-time connection status, active
+    server URL, current compute backend (`CUDA`, `Vulkan`, `ROCm`, `CPU`), and
+    loaded Whisper model.
+  - **Output Mode Switcher:** A menu toggle to switch between Auto-Typing
+    (`ydotool`) and Clipboard Copy (`wl-copy`), staying in sync with the
+    `Right Ctrl + Space` hotkey.
+  - **Settings & Config Editor:** Menu option to view and edit parameters (such
+    as typing speeds, target WebSocket URL, and default model) in
+    `~/.config/ai-voice-server/client.env`.
+  - **Remote Server Restart Command:** Authenticated tray action sending
+    `POST /restart` to trigger a server service restart/re-probe when booted on CPU.
+  - **Server Web Interface & Admin Menu:** Menu entry to launch the server's web
+    interface/documentation in the browser, plus an authenticated sub-menu to
+    trigger model hot-swaps (`set_model` to `small.en`, `large-v3`, etc.)
+    directly via API key.
+
+---
+
+## 6. Word-by-Word Interim Streaming Transcripts
+
+- **Goal:** Stream partial transcription updates to the client in real-time as
+  speech is being processed (`is_final: false`).
+- **Details:**
+  - Explore partial segment decoding in `whisper-rs`.
+  - Update the client OSD to display live streaming words prior to final
+    keystroke injection.
