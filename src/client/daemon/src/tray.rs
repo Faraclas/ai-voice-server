@@ -76,20 +76,14 @@ impl Tray for AppTray {
             StandardItem {
                 label: format!("{} Auto-Typing (ydotool)", if is_type { "●" } else { "○" }),
                 activate: Box::new(|this: &mut AppTray| {
-                    let tx = this.toggle_mode_tx.clone();
-                    tokio::spawn(async move {
-                        let _ = tx.send(()).await;
-                    });
+                    let _ = this.toggle_mode_tx.try_send(());
                 }),
                 ..Default::default()
             }.into(),
             StandardItem {
                 label: format!("{} Clipboard Copy (wl-copy)", if is_clip { "●" } else { "○" }),
                 activate: Box::new(|this: &mut AppTray| {
-                    let tx = this.toggle_mode_tx.clone();
-                    tokio::spawn(async move {
-                        let _ = tx.send(()).await;
-                    });
+                    let _ = this.toggle_mode_tx.try_send(());
                 }),
                 ..Default::default()
             }.into(),
@@ -100,30 +94,21 @@ impl Tray for AppTray {
                     StandardItem {
                         label: "small.en".to_string(),
                         activate: Box::new(|this: &mut AppTray| {
-                            let tx = this.model_swap_tx.clone();
-                            tokio::spawn(async move {
-                                let _ = tx.send("small.en".to_string()).await;
-                            });
+                            let _ = this.model_swap_tx.try_send("small.en".to_string());
                         }),
                         ..Default::default()
                     }.into(),
                     StandardItem {
                         label: "medium.en".to_string(),
                         activate: Box::new(|this: &mut AppTray| {
-                            let tx = this.model_swap_tx.clone();
-                            tokio::spawn(async move {
-                                let _ = tx.send("medium.en".to_string()).await;
-                            });
+                            let _ = this.model_swap_tx.try_send("medium.en".to_string());
                         }),
                         ..Default::default()
                     }.into(),
                     StandardItem {
                         label: "large-v3".to_string(),
                         activate: Box::new(|this: &mut AppTray| {
-                            let tx = this.model_swap_tx.clone();
-                            tokio::spawn(async move {
-                                let _ = tx.send("large-v3".to_string()).await;
-                            });
+                            let _ = this.model_swap_tx.try_send("large-v3".to_string());
                         }),
                         ..Default::default()
                     }.into(),
@@ -146,10 +131,7 @@ impl Tray for AppTray {
             StandardItem {
                 label: "⚡ Restart Remote Server Service".to_string(),
                 activate: Box::new(|this: &mut AppTray| {
-                    let tx = this.restart_tx.clone();
-                    tokio::spawn(async move {
-                        let _ = tx.send(()).await;
-                    });
+                    let _ = this.restart_tx.try_send(());
                 }),
                 ..Default::default()
             }.into(),
@@ -166,10 +148,7 @@ impl Tray for AppTray {
             StandardItem {
                 label: "🔄 Test Connection".to_string(),
                 activate: Box::new(|this: &mut AppTray| {
-                    let tx = this.test_conn_tx.clone();
-                    tokio::spawn(async move {
-                        let _ = tx.send(()).await;
-                    });
+                    let _ = this.test_conn_tx.try_send(());
                 }),
                 ..Default::default()
             }.into(),
