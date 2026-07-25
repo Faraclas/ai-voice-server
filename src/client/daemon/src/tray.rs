@@ -17,6 +17,10 @@ pub struct AppTray {
 }
 
 impl Tray for AppTray {
+    fn id(&self) -> String {
+        "ai-voice-client".to_string()
+    }
+
     fn icon_name(&self) -> String {
         let status = self.status.read().unwrap_or_else(|e| e.into_inner());
         if *status == "Connected" || *status == "ready" {
