@@ -6,6 +6,8 @@ After=network.target
 Type=simple
 User=aivoice
 Group=aivoice
+SupplementaryGroups=video render
+ExecStartPre=-/usr/bin/nvidia-modprobe -u -c 0
 EnvironmentFile=-/etc/conf.d/ai-voice-server
 ExecStart=/usr/bin/ai-voice-server
 Restart=on-failure
@@ -17,11 +19,11 @@ ProtectHome=true
 PrivateTmp=true
 NoNewPrivileges=true
 # Allow access to GPU devices
-DeviceAllow=/dev/nvidia0 rw
-DeviceAllow=/dev/nvidiactl rw
-DeviceAllow=/dev/nvidia-uvm rw
-DeviceAllow=/dev/nvidia-uvm-tools rw
-DeviceAllow=/dev/dri/renderD128 rw
+DeviceAllow=/dev/nvidia* rwm
+DeviceAllow=/dev/nvidiactl rwm
+DeviceAllow=/dev/nvidia-uvm rwm
+DeviceAllow=/dev/nvidia-uvm-tools rwm
+DeviceAllow=/dev/dri/renderD128 rwm
 
 [Install]
 WantedBy=multi-user.target

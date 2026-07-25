@@ -56,7 +56,9 @@ impl AppConfig {
         for dev in &device_priority {
             match dev.as_str() {
                 "cuda" | "nvidia" => {
-                    if std::process::Command::new("nvidia-smi").output().is_ok() {
+                    if std::process::Command::new("nvidia-smi").output().is_ok()
+                        && std::path::Path::new("/dev/nvidia-uvm").exists()
+                    {
                         use_gpu = true;
                         active_device = "cuda".to_string();
                         break;
