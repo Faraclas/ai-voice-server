@@ -27,6 +27,7 @@ async fn main() {
     let state = AppState { config: config.clone(), queue };
 
     let app = Router::new()
+        .route("/", get(routes::admin::admin_ui_handler))
         .route("/health", get(routes::health::health_handler))
         .route("/stream", get(routes::stream::stream_handler))
         .route("/set_model", post(routes::model::set_model_handler))

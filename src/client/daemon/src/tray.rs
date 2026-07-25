@@ -123,7 +123,7 @@ impl Tray for AppTray {
                     let http_url = url
                         .replace("ws://", "http://")
                         .replace("wss://", "https://")
-                        .replace("/stream", "");
+                        .replace("/stream", "/admin");
                     let _ = open::that(http_url);
                 }),
                 ..Default::default()
