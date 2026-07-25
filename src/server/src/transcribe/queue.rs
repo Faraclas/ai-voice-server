@@ -60,8 +60,9 @@ impl JobQueue {
                         }
                     }
                     WorkerCommand::GetStatus { responder } => {
-                        let gpu_active = engine.as_ref().map(|e| e.use_gpu).unwrap_or(false);
-                        let active_device = config_clone.active_device.clone();
+                        let (gpu_active, active_device) = engine.as_ref()
+                            .map(|e| (e.use_gpu, e.active_device.clone()))
+                            .unwrap_or((false, "cpu".to_string()));
                         let _ = responder.send(crate::routes::health::HealthResponse {
                             status: if engine.is_some() { "ready".to_string() } else { "error".to_string() },
                             gpu_active,

@@ -5,12 +5,22 @@ use std::path::Path;
 pub struct WhisperEngine {
     context: WhisperContext,
     pub use_gpu: bool,
+    pub active_device: String,
 }
 
 impl WhisperEngine {
     pub fn new(config: &AppConfig, model_name: &str) -> Result<Self, String> {
-        let use_gpu = config.use_gpu;
-        let active_device = &config.active_device;
+        let mut use_gpu = config.use_gpu;
+        let mut active_device = config.active_device.clone();
+
+        if use_gpu && active_device == "cuda" {
+            // Verify that /dev/nvidia-uvm is writable by the current process before attempting GPU initialization
+            if let Err(e) = std::fs::OpenOptions::new().read(true).write(true).open("/dev/nvidia-uvm") {
+                eprintln!("WARNING: CUDA requested, but /dev/nvidia-uvm is not accessible by current process ({:?}). Falling back to CPU.", e);
+                use_gpu = false;
+                active_device = "cpu".to_string();
+            }
+        }
 
         // Try .bin or .gguf since we use GGUF now
         let mut model_path = Path::new(&config.model_dir).join(format!("{}.gguf", model_name));
@@ -30,7 +40,7 @@ impl WhisperEngine {
         let context = WhisperContext::new_with_params(model_path.to_str().unwrap(), ctx_params)
             .map_err(|e| format!("Failed to load model: {}", e))?;
 
-        Ok(Self { context, use_gpu })
+        Ok(Self { context, use_gpu, active_device })
     }
 
     pub fn transcribe(&self, audio_data: &[f32]) -> Result<(String, u64), String> {
