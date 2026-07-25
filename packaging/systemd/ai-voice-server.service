@@ -12,6 +12,7 @@ EnvironmentFile=-/etc/conf.d/ai-voice-server
 ExecStart=/usr/bin/ai-voice-server
 Restart=on-failure
 RestartSec=5
+RestartForceExitStatus=42
 
 # Sandbox / Security Hardening (Gentoo best practice)
 ProtectSystem=full

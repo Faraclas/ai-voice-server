@@ -36,8 +36,8 @@ pub async fn restart_handler(
     // Spawn a background task to exit the process after returning the HTTP response
     tokio::spawn(async {
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        println!("Received remote restart request from authenticated admin. Exiting process for systemd restart...");
-        std::process::exit(0);
+        println!("Received remote restart request from authenticated admin. Exiting process (exit status 42) for systemd restart...");
+        std::process::exit(42);
     });
 
     Json(RestartResponse {
