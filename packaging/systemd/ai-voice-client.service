@@ -6,6 +6,7 @@ PartOf=graphical-session.target
 [Service]
 Type=simple
 # The client talks to the GTK/Wayland layer, so it must run as the logged-in user
+PassEnvironment=WAYLAND_DISPLAY DISPLAY
 ExecStart=/usr/bin/ai-voice-client
 Restart=on-failure
 RestartSec=3
