@@ -423,6 +423,7 @@ fn main() -> Result<()> {
     let hotkey_rx_opt = Rc::new(RefCell::new(Some(hotkey_rx)));
     let status_rx_opt = Rc::new(RefCell::new(Some(status_rx)));
     let status_state_gtk = status_state.clone();
+    let tray_handle_gtk = tray_handle.clone();
 
     app.connect_activate(move |app| {
         let (window, label) = ui::build_ui(app);
@@ -434,6 +435,7 @@ fn main() -> Result<()> {
         if let Some(mut rx) = hotkey_rx_opt.borrow_mut().take() {
             let audio_tx = audio_ctl_tx.clone();
             let st_gtk = status_state_gtk.clone();
+            let th_gtk = tray_handle_gtk.clone();
             let win_gtk = window.clone();
             let lbl_gtk = label.clone();
 
@@ -461,6 +463,11 @@ fn main() -> Result<()> {
                                 );
                             } else {
                                 info!("Hotkey Pressed - Starting Recording");
+                                {
+                                    let mut st = st_gtk.write().unwrap_or_else(|e| e.into_inner());
+                                    *st = "Recording".to_string();
+                                }
+                                th_gtk.update(|_| {});
                                 lbl_gtk.set_text("🎙️ Recording...");
                                 win_gtk.set_visible(true);
                                 let _ = audio_tx.send(true).await;
@@ -474,6 +481,11 @@ fn main() -> Result<()> {
 
                             if current_status != "Disconnected" && current_status != "Offline" {
                                 info!("Hotkey Released - Stopping Recording");
+                                {
+                                    let mut st = st_gtk.write().unwrap_or_else(|e| e.into_inner());
+                                    *st = "Processing".to_string();
+                                }
+                                th_gtk.update(|_| {});
                                 lbl_gtk.set_text("⚙️ Transcribing...");
                                 let _ = audio_tx.send(false).await;
                             }
@@ -484,6 +496,8 @@ fn main() -> Result<()> {
         }
 
         if let Some(mut rx) = status_rx_opt.borrow_mut().take() {
+            let st_gtk2 = status_state_gtk.clone();
+            let th_gtk2 = tray_handle_gtk.clone();
             main_context.spawn_local(async move {
                 info!("Listening for server status updates...");
                 while let Some((status, pct)) = rx.recv().await {
@@ -497,6 +511,11 @@ fn main() -> Result<()> {
                             label_clone.set_text("📥 Downloading Model...");
                         }
                     } else if status == "ready" || status == "done" {
+                        {
+                            let mut st = st_gtk2.write().unwrap_or_else(|e| e.into_inner());
+                            *st = "Connected".to_string();
+                        }
+                        th_gtk2.update(|_| {});
                         window_clone.set_visible(false);
                     } else if status == "toast_clipboard" {
                         label_clone.set_text("📋 Mode: Clipboard");
