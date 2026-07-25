@@ -150,14 +150,17 @@ impl Tray for AppTray {
                 label: "⚙️ Edit Client Config".to_string(),
                 activate: Box::new(|_| {
                     if let Some(home) = dirs::config_dir() {
-                        let path1 = home.join("ai-voice");
-                        let path2 = home.join("ai-voice-server/client.env");
+                        let path1 = home.join("ai-voice-server/client.env");
+                        let path2 = home.join("ai-voice/client.conf");
+                        let path3 = home.join("ai-voice/client.env");
                         if path1.exists() {
                             let _ = open::that(path1);
                         } else if path2.exists() {
                             let _ = open::that(path2);
+                        } else if path3.exists() {
+                            let _ = open::that(path3);
                         } else {
-                            let _ = open::that(path2);
+                            let _ = open::that(path1);
                         }
                     }
                 }),

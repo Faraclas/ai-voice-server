@@ -57,8 +57,16 @@ fn ensure_config_exists_and_updated() {
 
         let settings = vec![
             (
+                "SERVER_HOST",
+                "# Remote AI Voice Server IP/Hostname.\n# SERVER_HOST=\"192.168.0.205\"\n"
+            ),
+            (
+                "SERVER_PORT",
+                "# Remote AI Voice Server Port.\n# SERVER_PORT=\"3000\"\n"
+            ),
+            (
                 "AI_VOICE_SERVER_WS_URL",
-                "# The WebSocket URL of your AI Voice Server backend.\n# Default: ws://127.0.0.1:3000/stream\n# AI_VOICE_SERVER_WS_URL=ws://127.0.0.1:3000/stream\n"
+                "# Full WebSocket URL (optional, overrides SERVER_HOST/SERVER_PORT).\n# AI_VOICE_SERVER_WS_URL=ws://192.168.0.205:3000/stream\n"
             ),
             (
                 "AI_VOICE_OUTPUT_MODE",
@@ -105,8 +113,8 @@ fn main() -> Result<()> {
     let _ = dotenvy::dotenv();
     if let Some(home) = dirs::config_dir() {
         let _ = dotenvy::from_path(home.join("ai-voice-server/client.env"));
+        let _ = dotenvy::from_path(home.join("ai-voice/client.conf"));
         let _ = dotenvy::from_path(home.join("ai-voice/client.env"));
-        let _ = dotenvy::from_path(home.join("ai-voice"));
     }
     let _ = dotenvy::from_path("/etc/ai-voice-server/client.env");
     env_logger::init();
