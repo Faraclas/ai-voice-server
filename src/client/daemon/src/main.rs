@@ -278,10 +278,22 @@ fn main() -> Result<()> {
                     th_handle_restart.update(|_| {});
 
                     let restart_endpoint = format!("{}/restart", http_url_restart);
-                    let _ = http_c.post(&restart_endpoint)
+                    info!("Sending remote restart POST to {}", restart_endpoint);
+                    match http_c.post(&restart_endpoint)
                         .header("Authorization", format!("Bearer {}", key))
                         .send()
-                        .await;
+                        .await 
+                    {
+                        Ok(resp) => {
+                            info!("Remote restart POST returned HTTP status: {}", resp.status());
+                            if let Ok(text) = resp.text().await {
+                                info!("Remote restart response body: {}", text);
+                            }
+                        }
+                        Err(e) => {
+                            error!("Failed to send remote restart POST: {}", e);
+                        }
+                    }
 
                     // Poll /health every 1s until server comes back online
                     let health_ep = format!("{}/health", http_url_restart);
