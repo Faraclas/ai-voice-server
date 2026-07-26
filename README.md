@@ -20,7 +20,11 @@ focused window or Wayland clipboard.
   type text natively into any Wayland or X11 application.
 - **On-Demand Streaming:** Audio streams over WebSockets directly to a
   VRAM-managed job queue with an automatic 60-second idle connection timeout.
-- **Wayland GTK OSD:** Ephemeral visual overlay built with `gtk4-layer-shell`.
+- **Wayland GTK OSD & App Indicator:** Ephemeral visual overlay built with
+  `gtk4-layer-shell` and GNOME system tray status indicator (`ksni`) with
+  dynamic status icons (⚪ Ready, 🔴 Recording, 🟡 Warm WebSocket Stream, ❌ Offline).
+- **Web Admin Dashboard:** Integrated web interface on `/` and `/admin` for
+  monitoring GPU backend status, VRAM usage, and active models.
 - **Gentoo Integration:** Distributed as a native Portage ebuild with systemd
   user and system service integration.
 
@@ -30,13 +34,13 @@ focused window or Wayland clipboard.
 
 - **Server (`src/server/`):** Async Rust service built on `axum` and
   `whisper-rs`. Features model auto-downloading from HuggingFace, dynamic
-  hot-swapping via WebSocket/HTTP, and VRAM protection through a single-worker
-  queue.
+  hot-swapping via WebSocket/HTTP, Web Admin Dashboard, and VRAM protection
+  through a single-worker queue.
 - **Client (`src/client/`):** Split-binary Rust architecture:
   - `interception_plugin`: Lightweight kernel input event grabber running under
     `udevmon`.
   - `daemon`: User-level Wayland GTK application managing audio, UI overlays,
-    `ydotool` injection, and WebSocket streaming.
+    `ydotool` injection, WebSocket streaming, and system tray app indicator.
 - **Packaging (`packaging/` & Gentoo Overlay):** Systemd units, udev rules, and
   Portage ebuild (`app-misc/ai-voice-server`) in `adaptive-overlay`.
 
@@ -78,8 +82,14 @@ cd src/client && cargo run --release --bin daemon
 
 ## Configuration
 
-- **Server Config:** Configured via `/etc/conf.d/ai-voice-server` (or `.env` in `src/server`). Options include `WHISPER_MODEL`, `PORT`, `BIND_ADDR`, and `GPU_MODE`.
-- **Client Config:** Automatically generates `~/.config/ai-voice-server/client.env` on first launch. Allows customizing `AI_VOICE_SERVER_WS_URL`, `AI_VOICE_OUTPUT_MODE` (`type` or `clipboard`), and `ydotool` typing delays.
+- **Server Config:** Configured via `/etc/conf.d/ai-voice-server` (or `.env`
+  in `src/server`). Options include `WHISPER_MODEL`, `PORT`, `BIND_ADDR`,
+  `ADMIN_API_KEY`, and `GPU_MODE`.
+- **Client Config:** Automatically generates `~/.config/ai-voice-server/client.env`
+  on first launch (also supports `SERVER_HOST` / `SERVER_PORT` or legacy
+  `client.conf`). Allows customizing `AI_VOICE_SERVER_WS_URL`, `SERVER_HOST`,
+  `SERVER_PORT`, `AI_VOICE_ADMIN_API_KEY`, `AI_VOICE_OUTPUT_MODE` (`type` or
+  `clipboard`), and `ydotool` typing delays.
 
 ---
 

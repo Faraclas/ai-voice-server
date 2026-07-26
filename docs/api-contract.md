@@ -164,7 +164,8 @@ Updates server configuration parameters on disk (`/etc/conf.d/ai-voice-server` o
 
 Triggers an authenticated service restart or hardware re-probe on the server.
 Used by the Web UI or AppIndicator tray menu to re-detect GPU hardware or apply
-new config settings.
+new config settings. The process exits with code `42`, which triggers systemd
+`RestartForceExitStatus=42` to immediately perform a service restart.
 
 ### Request Headers
 
@@ -174,7 +175,7 @@ new config settings.
 
 ```json
 {
-  "status": "restarting",
+  "status": "success",
   "message": "Server service restart initiated."
 }
 ```
@@ -183,13 +184,35 @@ new config settings.
 
 ## 6. Connection Lifecycle & Keep-Alive
 
-To ensure ultra-low latency while minimizing server resource usage, the WebSocket connection for `/stream` adheres to a strict keep-alive lifecycle:
+To ensure ultra-low latency while minimizing server resource usage, the
+WebSocket connection for `/stream` adheres to a strict keep-alive lifecycle:
 
 ### Client Responsibilities
-1. **Connect on Demand:** The client opens the WebSocket connection on the very first hotkey press (or pre-warms it if desired).
-2. **Persistent Reuse:** After sending an `{"action": "end_stream"}` message and receiving the transcription JSON, the client **keeps the connection open**. Subsequent dictation bursts are sent over this exact same connection.
-3. **Idle Timer (Graceful Close):** The client maintains an internal idle timer (e.g., 60 seconds). If no dictation occurs within this window, the client gracefully closes the WebSocket connection to free up server resources.
+1. **Connect on Demand:** The client opens the WebSocket connection on the very
+   first hotkey press (or pre-warms it if desired).
+2. **Persistent Reuse:** After sending an `{"action": "end_stream"}` message and
+   receiving the transcription JSON, the client **keeps the connection open**.
+   Subsequent dictation bursts are sent over this exact same connection.
+3. **Idle Timer (Graceful Close):** The client maintains an internal idle timer
+   (e.g., 60 seconds). If no dictation occurs within this window, the client
+   gracefully closes the WebSocket connection to free up server resources.
 
 ### Server Responsibilities
-1. **Stay Open:** The server **must not** close the WebSocket connection after sending the transcription JSON back to the client. It must return to listening for the next incoming binary audio chunk on the same socket.
-2. **Fail-Safe Timeout:** The server **must** implement a hard timeout (e.g., 5 minutes of no incoming audio frames) to forcefully drop the connection. This protects the server from zombie connections if a client application crashes or loses network connectivity without sending a graceful close signal.
+1. **Stay Open:** The server **must not** close the WebSocket connection after
+   sending the transcription JSON back to the client. It must return to
+   listening for the next incoming binary audio chunk on the same socket.
+2. **Fail-Safe Timeout:** The server **must** implement a hard timeout (e.g.,
+   5 minutes of no incoming audio frames) to forcefully drop the connection.
+   This protects the server from zombie connections if a client application
+   crashes or loses network connectivity without sending a graceful close
+   signal.
+
+---
+
+## 7. Web Admin Dashboard
+
+**Endpoints:** `GET /` and `GET /admin`
+
+Serves the zero-overhead single-file Web Admin Dashboard compiled into the server
+binary via `include_str!`. Allows web browsers to view GPU telemetry, VRAM usage,
+and loaded models.
