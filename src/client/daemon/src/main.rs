@@ -226,7 +226,9 @@ fn main() -> Result<()> {
                             if let Ok(data) = resp.json::<HealthResponse>().await {
                                 {
                                     let mut st = status_st.write().unwrap_or_else(|e| e.into_inner());
-                                    *st = "Connected".to_string();
+                                    if *st == "Disconnected" || *st == "Offline" || *st == "Connecting" {
+                                        *st = "Connected".to_string();
+                                    }
                                 }
                                 if let Some(dev) = data.active_device {
                                     let mut d = dev_st.write().unwrap_or_else(|e| e.into_inner());
